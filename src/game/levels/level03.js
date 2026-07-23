@@ -1,21 +1,29 @@
 import { median } from '../profile.js';
 
-// 天花板可以壓到的兩個高度。第 10 列會擋掉滿力跳（升 51 px），
-// 但仍留得下升 34 px 的中等跳——而中等跳足以跨過兩格刺，
+// 天花板固定在第 9 列。滿力跳（升 51 px）會撞到它，
+// 升 34 px 的中等跳則過得去——而中等跳足以跨過兩格刺，
 // 所以不管側寫怎麼變，這一關永遠有解。
-const CEIL_LOW = 10;
-const CEIL_HIGH = 9;
+const SLAB_ROW = 9;
+const SPIKE_ROW = 10;
 const SLAB_X0 = 11;
 const SLAB_X1 = 20;
 
 // 超過這個高度就算「你習慣把跳躍鍵按到底」
 const TALL_JUMP = 35;
 
-function addSlab(tiles, row) {
+function addSlab(tiles, spiked) {
   const out = tiles.slice();
-  const cells = out[row].split('');
-  for (let x = SLAB_X0; x <= SLAB_X1; x++) cells[x] = '#';
-  out[row] = cells.join('');
+  const slab = out[SLAB_ROW].split('');
+  for (let x = SLAB_X0; x <= SLAB_X1; x++) slab[x] = '#';
+  out[SLAB_ROW] = slab.join('');
+
+  // 你習慣跳滿的話，天花板底下就掛滿倒刺。
+  // 撞頂不再只是彈回來，是直接死在上面。
+  if (spiked) {
+    const teeth = out[SPIKE_ROW].split('');
+    for (let x = SLAB_X0 + 1; x <= SLAB_X1 - 1; x++) teeth[x] = 'v';
+    out[SPIKE_ROW] = teeth.join('');
+  }
   return out;
 }
 
@@ -69,7 +77,6 @@ export default {
   // 反制：改成點跳。矮的弧線反而過得去。
   adapt(tiles, profile) {
     const apex = median(profile.apexes);
-    const row = apex !== null && apex >= TALL_JUMP ? CEIL_LOW : CEIL_HIGH;
-    return { tiles: addSlab(tiles, row) };
+    return { tiles: addSlab(tiles, apex !== null && apex >= TALL_JUMP) };
   },
 };

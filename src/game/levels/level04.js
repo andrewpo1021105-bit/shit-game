@@ -10,6 +10,10 @@ const SPIKE_PAIR = 2;
 const STEP_MIN = 4;
 const STEP_MAX = 5;
 
+// 倒刺掛在第 10 列。玩家升 34 px 時頭頂在 y=176（第 11 列），剛好躲得掉；
+// 升 51 px 的滿力跳頭頂到 y=159，會插進第 10 列——這就是那條線。
+const CEIL_ROW = 10;
+
 export default {
   id: 4,
   name: '你的步伐我量過了',
@@ -44,10 +48,12 @@ export default {
       do: [{ t: 'sweepSpike', x: 27, y: 13, vx: -70 }],
       once: true,
     },
-    // 中段再冒一根。第 16 格在兩種間距下都是落腳處，所以這一根一定踩得到。
+    // 穿過刺陣、以為結束了，門前再冒一根。
+    // 位置刻意放在刺陣之外——放在陣中會把兩對刺連成三格，
+    // 而三格在倒刺壓低的跳躍高度下是跳不過去的。
     {
-      when: { t: 'crossX', x: 14 },
-      do: [{ t: 'spawnSpikes', x: 16, y: 14, w: 1, h: 1 }],
+      when: { t: 'crossX', x: 19 },
+      do: [{ t: 'spawnSpikes', x: 23, y: 14, w: 1, h: 1 }],
       once: true,
     },
   ],
@@ -67,6 +73,12 @@ export default {
       for (let i = 0; i < SPIKE_PAIR && x + i <= FIELD_X1; i++) cells[x + i] = '^';
     }
     out[14] = cells.join('');
+
+    // 整片刺陣的上方掛滿倒刺。跳滿會插死在天花板上，
+    // 只有壓低的小跳過得去——這正好就是這一關要逼你改掉的習慣。
+    const teeth = out[CEIL_ROW].split('');
+    for (let x = FIELD_X0; x <= FIELD_X1; x++) teeth[x] = 'v';
+    out[CEIL_ROW] = teeth.join('');
 
     return { tiles: out };
   },

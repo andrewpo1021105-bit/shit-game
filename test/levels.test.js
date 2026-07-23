@@ -51,6 +51,38 @@ function longestRun(row, ch) {
   return worst;
 }
 
+// 依實際物理算出「頭頂被壓到只能升 rise 像素」時，一跳能飛多遠
+function jumpDistance(rise) {
+  if (rise <= 0) return 0;
+  const up = Math.sqrt(2 * 900 * rise) / 900;      // 上升重力 900
+  const down = Math.sqrt((2 * rise) / 1620);       // 下墜重力 1620
+  return (up + down) * 112;                        // 最高水平速度
+}
+
+// 掃出一列裡所有連續的「不能踩」片段，回傳 [起點, 長度]
+function blockedRuns(row) {
+  const runs = [];
+  let start = -1;
+  for (let x = 0; x < row.length; x++) {
+    const bad = row[x] === '.' || row[x] === '^';
+    if (bad && start < 0) start = x;
+    if (!bad && start >= 0) { runs.push([start, x - start]); start = -1; }
+  }
+  if (start >= 0) runs.push([start, row.length - start]);
+  return runs;
+}
+
+// 這段缺口正上方最低的障礙物在第幾列（沒有就回傳 null）
+function lowestCeiling(tiles, x0, x1, floorRow) {
+  let lowest = null;
+  for (let y = 1; y < floorRow - 1; y++) {
+    for (let x = Math.max(1, x0); x <= Math.min(tiles[y].length - 2, x1); x++) {
+      if (tiles[y][x] !== '.') { lowest = y; break; }
+    }
+  }
+  return lowest;
+}
+
 // 造出一份把所有指標都推到極端的側寫
 function extremeProfile(v) {
   return {
@@ -102,6 +134,42 @@ test('adapt 在任意側寫輸入下產生的地形都可通關', () => {
       for (const [x, y] of [[lv.spawn[0], lv.spawn[1] + 1], [lv.door[0], lv.door[1] + 2]]) {
         assert.equal(isDeadly(tiles, x, y), false, `${where}：(${x},${y}) 是刺，玩家沒有安全立足點`);
       }
+    }
+  }
+});
+
+// 天花板上的倒刺會壓低跳躍高度，跳低了就飛不遠。
+// 這條測試把兩者一起算：每個缺口都要在「它正上方的天花板允許的高度」下跳得過。
+test('每個缺口在該處天花板允許的跳躍高度下都跳得過去', () => {
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : { tiles: lv.tiles.slice() };
+    const world = {
+      map: built.tiles.slice(),
+      door: { x: lv.door[0], y: lv.door[1] },
+      profile: createProfile(),
+      player: { y: lv.spawn[1] * TILE, h: 14 },
+      hazards: [],
+    };
+    for (const trap of built.traps ?? lv.traps ?? []) {
+      if (trap.do.some((a) => a.t === 'crumbleFromLeft')) continue;
+      for (const action of trap.do) applyAction(world, action);
+    }
+
+    const floorRow = lv.spawn[1] + 1;
+    const standY = lv.spawn[1] * TILE + (TILE - 14);
+    for (const [start, len] of blockedRuns(world.map[floorRow])) {
+      if (start === 0 || start + len >= MAP_W) continue;   // 邊界牆不算缺口
+      if (lv.spikesRetract && world.map[floorRow][start] === '^') continue;
+
+      const ceil = lowestCeiling(world.map, start - 1, start + len, floorRow);
+      // 頭頂必須留在障礙物下緣以下，能升的高度就只剩這麼多
+      const rise = ceil === null ? 51 : standY - (ceil + 1) * TILE;
+      const reach = jumpDistance(Math.min(51, rise));
+      const needed = len * TILE + 10;   // 起跳格右緣到落地格左緣
+
+      assert.ok(reach >= needed,
+        `第 ${lv.id} 關第 ${start} 格起的 ${len} 格缺口：天花板只讓你跳 ${Math.round(rise)}px，`
+        + `飛得了 ${Math.round(reach)}px，但需要 ${needed}px`);
     }
   }
 });

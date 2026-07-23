@@ -159,6 +159,51 @@ test('被砸下來的方塊打中會死', () => {
   assert.ok(w.deaths >= 1, '站在正下方不動應該被砸死');
 });
 
+test('封路的高牆砸下來時，被關在後面的玩家算死', () => {
+  const WALL = {
+    id: 92,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{
+      when: { t: 'afterDelay', s: 0.1 },
+      do: [{ t: 'dropBlock', x: 12, y: 1, rows: 5, seals: true, gravity: 400 }],
+      once: true,
+    }],
+  };
+  const w = createWorld(WALL, createProfile());
+  run(w, NONE, 3);            // 站在原地不動，牆落在前方
+  assert.ok(w.deaths >= 1, '被關在牆後面應該直接算死，而不是卡住');
+});
+
+test('封路的高牆有五格高，玩家跳不上去', () => {
+  const WALL = {
+    id: 91,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{
+      when: { t: 'afterDelay', s: 0.1 },
+      do: [{ t: 'dropBlock', x: 12, y: 1, rows: 5, seals: true, gravity: 400 }],
+      once: true,
+    }],
+  };
+  const w = createWorld(WALL, createProfile());
+  let landed = false;
+  for (let i = 0; i < Math.round(3 / PHYSICS_DT); i++) {
+    updateWorld(w, NONE, PHYSICS_DT);
+    if (w.events.includes('thud')) { landed = true; break; }
+  }
+  assert.equal(landed, true, '牆應該要落地');
+  // 牆佔第 9~13 列，頂端 y = 144。玩家跳躍最高只能讓腳底到 y = 173，
+  // 所以站不上去——這就是「跳不過去」的意思。
+  for (let row = 9; row <= 13; row++) {
+    assert.equal(w.map[row][12], '#', `第 ${row} 列應該是牆的一部分`);
+  }
+});
+
 test('橫掃的刺撞到牆就消失，不會永遠留在場上', () => {
   const SWEEP = {
     id: 95,

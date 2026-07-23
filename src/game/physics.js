@@ -1,8 +1,10 @@
 import { TILE } from './constants.js';
 
-// 地磚字元：'.' 空氣、'#' 實心、'^' 刺（實心且會殺人）
+// 地磚字元：'.' 空氣、'#' 實心、'^' 地上的刺、'v' 天花板倒掛的刺
+// 兩種刺都是實心的，而且都會殺人
 export const AIR = '.';
 export const SPIKE = '^';
+export const SPIKE_DOWN = 'v';
 
 export function tileAt(map, tx, ty) {
   if (ty < 0) return '#';
@@ -17,7 +19,8 @@ export function isSolid(map, tx, ty) {
 }
 
 export function isDeadly(map, tx, ty) {
-  return tileAt(map, tx, ty) === SPIKE;
+  const ch = tileAt(map, tx, ty);
+  return ch === SPIKE || ch === SPIKE_DOWN;
 }
 
 export function collides(map, box) {

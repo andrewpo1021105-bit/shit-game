@@ -48,17 +48,19 @@ export function createRenderer(canvas) {
     ctx.fillRect(px + 10, py + 12, 2, 2);
   }
 
-  // 刺：底座 + 兩根往上的尖齒，尖端染紅
-  function drawSpike(x, y) {
+  // 刺：底座 + 兩根尖齒，尖端染紅。dir = 1 朝上（地上），-1 朝下（天花板倒掛）
+  function drawSpike(x, y, dir) {
     const px = x * TILE, py = y * TILE;
+    const baseY = dir > 0 ? py + 12 : py;
     ctx.fillStyle = '#2a2f45';
-    ctx.fillRect(px, py + 12, TILE, 4);
+    ctx.fillRect(px, baseY, TILE, 4);
     for (let tooth = 0; tooth < 2; tooth++) {
       const cx = px + 4 + tooth * 8;
       for (let r = 0; r < 12; r++) {
         const w = Math.max(1, Math.round((r / 11) * 6));
         ctx.fillStyle = r < 3 ? '#e04b4b' : '#c9d2e8';
-        ctx.fillRect(cx - Math.floor(w / 2), py + 12 - r, w, 1);
+        const ry = dir > 0 ? py + 12 - r : py + 3 + r;
+        ctx.fillRect(cx - Math.floor(w / 2), ry, w, 1);
       }
     }
   }
@@ -126,7 +128,8 @@ export function createRenderer(canvas) {
     for (let y = 0; y < map.length; y++)
       for (let x = 0; x < map[y].length; x++) {
         if (map[y][x] === '#') drawTile(map, x, y);
-        else if (map[y][x] === '^') drawSpike(x, y);
+        else if (map[y][x] === '^') drawSpike(x, y, 1);
+        else if (map[y][x] === 'v') drawSpike(x, y, -1);
       }
 
     // 過關瞬間門會亮一下再收回去

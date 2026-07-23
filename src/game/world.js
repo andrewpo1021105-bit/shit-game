@@ -56,11 +56,14 @@ function updateHazards(world, dt) {
 
     if (h.kind === 'block') {
       const tx = Math.round(h.x / TILE);
-      const row = Math.floor((h.y + h.h - 1) / TILE);
-      if (isSolid(world.map, tx, row + 1)) {
-        // 落地後就地變成實心方塊，從此擋在那裡
-        setTile(world, tx, row, '#');
+      const bottom = Math.floor((h.y + h.h - 1) / TILE);
+      if (isSolid(world.map, tx, bottom + 1)) {
+        // 落地後就地變成實心地形，從此擋在那裡
+        for (let i = 0; i < Math.round(h.h / TILE); i++) setTile(world, tx, bottom - i, '#');
         world.events.push('thud');
+        // 一面高到跳不上去的牆，如果落在玩家前方，玩家就永遠過不去了。
+        // 與其讓他卡在那裡自己按重來，不如直接算死——0.3 秒就回到起點。
+        if (h.seals && world.player.x + world.player.w <= h.x) kill(world);
         continue;
       }
     } else if (h.kind === 'spike') {

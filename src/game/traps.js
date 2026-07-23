@@ -77,12 +77,16 @@ export function applyAction(world, action) {
       paint(world, action.x, action.y, action.w, action.h, '^');
       break;
     case 'dropBlock':
-      // 從天花板砸下來的方塊。砸到人會死，落地後變成擋路的實心方塊。
+      // 從天花板砸下來的東西。砸到人會死，落地後就地變成實心地形。
+      // rows 給到 4 以上就高過玩家跳得上去的極限，等於一面牆；
+      // 這種牆要配 seals，被關在後面的人會直接算死，免得卡在原地動彈不得。
       world.hazards.push({
         kind: 'block',
         x: action.x * TILE, y: action.y * TILE,
-        w: TILE, h: TILE,
-        vx: 0, vy: 0, gravity: 1200,
+        w: TILE, h: (action.rows ?? 1) * TILE,
+        vx: 0, vy: 0,
+        gravity: action.gravity ?? 1200,
+        seals: action.seals ?? false,
       });
       break;
     case 'sweepSpike':
