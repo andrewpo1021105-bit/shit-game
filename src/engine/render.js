@@ -1,4 +1,4 @@
-import { TILE, VIEW_W, VIEW_H, TAUNT_TIME } from '../game/constants.js';
+import { TILE, VIEW_W, VIEW_H } from '../game/constants.js';
 import { SWEEP_IN, REVEAL_AT, TRANSITION_TIME } from '../game/session.js';
 import { SPRITES } from './sprites.js';
 
@@ -12,7 +12,6 @@ const C = {
   ui: '#6f779b',
   uiHot: '#e04b4b',
   scan: '#8fd6a0',
-  taunt: '#f0c040',
 };
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
