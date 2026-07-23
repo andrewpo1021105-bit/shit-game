@@ -20,8 +20,6 @@ export const COYOTE_TIME = 0.10;
 export const JUMP_BUFFER = 0.12;
 export const RESPAWN_DELAY = 0.30;
 
-// 重生時那句「我學到什麼」要停留多久
-export const TAUNT_TIME = 2.2;
 // 落地紀錄的門檻：離地超過這個秒數才算一次真正的跳躍落點，
 // 免得出生那一幀被當成落地而污染側寫
 export const AIRBORNE_MIN = 0.12;

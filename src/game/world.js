@@ -2,7 +2,7 @@ import { createPlayer, updatePlayer } from './player.js';
 import { createTrapState, checkTriggers, applyAction } from './traps.js';
 import { createProfile, noteLanding, noteAttempt, noteApex, noteSpeed, noteRestartDelay } from './profile.js';
 import { touchesDeadly } from './physics.js';
-import { TILE, VIEW_H, RESPAWN_DELAY, TAUNT_TIME, AIRBORNE_MIN } from './constants.js';
+import { TILE, VIEW_H, RESPAWN_DELAY, AIRBORNE_MIN } from './constants.js';
 
 const IDLE_SPEED = 6;   // 低於這個速度就算「站著不動」
 
@@ -10,18 +10,16 @@ const IDLE_SPEED = 6;   // 低於這個速度就算「站著不動」
 // 只在這裡（建立世界）與 resetLevel（重生）呼叫——這就是
 // 「絕不在玩家人在空中時改動任何東西」這條鐵則的實作保證。
 function buildMap(level, profile) {
-  if (!level.adapt) return { tiles: level.tiles.slice(), taunt: null, traps: level.traps };
+  if (!level.adapt) return { tiles: level.tiles.slice(), traps: level.traps };
   const r = level.adapt(level.tiles, profile);
   // adapt 也可以換掉這條命的陷阱設定（例如把「站多久算猶豫」調緊），
   // 回傳新的陣列而不是改寫關卡本身，關卡資料才能一直保持乾淨
-  return { tiles: r.tiles.slice(), taunt: r.taunt ?? null, traps: r.traps ?? level.traps };
+  return { tiles: r.tiles.slice(), traps: r.traps ?? level.traps };
 }
 
 function applyBuild(world) {
   const built = buildMap(world.level, world.profile);
   world.map = built.tiles;
-  world.taunt = built.taunt;
-  world.tauntTimer = built.taunt ? TAUNT_TIME : 0;
   world.traps = built.traps ?? [];
   world.door = { x: world.level.door[0], y: world.level.door[1] };
   world.player = createPlayer(world.level.spawn[0], world.level.spawn[1]);
@@ -89,7 +87,6 @@ function recordLanding(world, prevFeet) {
 
 export function updateWorld(world, input, dt) {
   world.events = [];
-  world.tauntTimer = Math.max(0, world.tauntTimer - dt);
 
   if (world.phase === 'dying') {
     world.phaseTimer -= dt;
@@ -153,7 +150,11 @@ export function updateWorld(world, input, dt) {
     idle: world.idle,
     atDoor: touchingDoor(world),
   });
-  for (const a of actions) applyAction(world, a);
+  for (const a of actions) {
+    applyAction(world, a);
+    // 刺彈出來要有聲音與震動——玩家不會被告知原因，但一定要察覺「剛剛有東西冒出來」
+    if (a.t === 'spawnSpikes') world.events.push('spike');
+  }
 
   if (touchesDeadly(world.map, p)) { kill(world); return; }
   if (p.y > VIEW_H + TILE) { kill(world); return; }

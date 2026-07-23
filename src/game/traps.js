@@ -70,6 +70,10 @@ export function applyAction(world, action) {
     case 'addTiles':
       paint(world, action.x, action.y, action.w, action.h, '#');
       break;
+    case 'spawnSpikes':
+      // 沒有預告，就是突然長出來。看得見是唯一的公平性保證。
+      paint(world, action.x, action.y, action.w, action.h, '^');
+      break;
     case 'moveDoor':
       world.door.x += action.x;
       world.door.y += action.y;

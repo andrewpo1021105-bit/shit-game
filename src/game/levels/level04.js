@@ -32,7 +32,15 @@ export default {
   ],
   spawn: [3, 13],
   door: [24, 12],
-  traps: [],
+
+  // 走進刺陣中段時，正前方再冒一根出來
+  traps: [
+    {
+      when: { t: 'crossX', x: 14 },
+      do: [{ t: 'spawnSpikes', x: 16, y: 14, w: 1, h: 1 }],
+      once: true,
+    },
+  ],
 
   // 刺按「你習慣速度下的一跳距離」等距擺放，
   // 於是你每照平常跳一次，就正好落在下一根刺上。
@@ -48,9 +56,6 @@ export default {
     for (let x = FIELD_X0; x <= FIELD_X1; x += step) cells[x] = '^';
     out[14] = cells.join('');
 
-    const taunt = profile.speeds.length >= 2
-      ? `你習慣一跳 ${step} 格。刺就擺在每 ${step} 格。`
-      : null;
-    return { tiles: out, taunt };
+    return { tiles: out };
   },
 };

@@ -25,6 +25,7 @@ function step(dt) {
   for (const e of session.world.events) {
     audio.play(e);
     if (e === 'death') shake = 5;
+    if (e === 'spike') shake = 3;
   }
   shake = Math.max(0, shake - dt * 20);
 }

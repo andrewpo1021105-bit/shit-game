@@ -50,20 +50,27 @@ export default {
   spawn: [3, 13],
   door: [24, 12],
 
-  // 走到 GATE_X 時記下你人在上面還是下面
+  // 走到 GATE_X 時記下你人在上面還是下面；
+  // 另外不管你選哪條，前方都會突然冒出一根刺。
   traps: [
     { when: { t: 'crossX', x: GATE_X }, do: [{ t: 'noteRoute', y: DIVIDER_Y }], once: true },
+    {
+      when: { t: 'enterRect', x: 14, y: 8, w: 3, h: 3 },
+      do: [{ t: 'spawnSpikes', x: 18, y: 10, w: 1, h: 1 }],
+      once: true,
+    },
+    {
+      when: { t: 'enterRect', x: 14, y: 12, w: 3, h: 2 },
+      do: [{ t: 'spawnSpikes', x: 19, y: 14, w: 1, h: 1 }],
+      once: true,
+    },
   ],
 
   // 你上次走哪條，這次那條就封死。
   // 永遠只封一條，另一條必定是通的。
   adapt(tiles, profile) {
-    if (profile.lastRoute === 'low') {
-      return { tiles: sealLow(tiles), taunt: '你上次走下路。下路封了。' };
-    }
-    if (profile.lastRoute === 'high') {
-      return { tiles: sealHigh(tiles), taunt: '你上次走上路。上路封了。' };
-    }
-    return { tiles: tiles.slice(), taunt: null };
+    if (profile.lastRoute === 'low') return { tiles: sealLow(tiles) };
+    if (profile.lastRoute === 'high') return { tiles: sealHigh(tiles) };
+    return { tiles: tiles.slice() };
   },
 };

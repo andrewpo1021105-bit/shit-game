@@ -24,20 +24,26 @@ export default {
     '#............................#',
     '#............................#',
     '#............................#',
-    '##############...#############',
-    '##############...#############',
-    '##############...#############',
+    '##############..##############',
+    '##############..##############',
+    '##############..##############',
   ],
   spawn: [3, 13],
   door: [24, 12],
 
   // 站著不動超過門檻，地板就從最左邊開始一格一格崩，往你逼近。
   // 已經崩掉的不會回來——猶豫是有代價的。
+  // 這份是預設值；adapt() 會依側寫把猶豫門檻換掉
   traps: [
     {
       when: { t: 'idleFor', s: IDLE_MAX },
       do: [{ t: 'crumbleFromLeft', y: 14 }],
       every: CRUMBLE_EVERY,
+    },
+    {
+      when: { t: 'crossX', x: 12 },
+      do: [{ t: 'spawnSpikes', x: 16, y: 14, w: 1, h: 1 }],
+      once: true,
     },
   ],
 
@@ -49,19 +55,22 @@ export default {
       ? IDLE_MAX
       : Math.min(IDLE_MAX, Math.max(IDLE_MIN, 2.2 - delay));
 
-    const taunt = profile.restartDelays.length >= 2
-      ? `你上次等了 ${delay} 秒才動。地板等你 ${threshold.toFixed(1)} 秒。`
-      : null;
-
     // 回傳新的陣列，不要改寫關卡本身
     return {
       tiles: tiles.slice(),
-      taunt,
-      traps: [{
-        when: { t: 'idleFor', s: threshold },
-        do: [{ t: 'crumbleFromLeft', y: 14 }],
-        every: CRUMBLE_EVERY,
-      }],
+      traps: [
+        {
+          when: { t: 'idleFor', s: threshold },
+          do: [{ t: 'crumbleFromLeft', y: 14 }],
+          every: CRUMBLE_EVERY,
+        },
+        // 你正要起跳過洞的時候，對面的落點長出一根刺
+        {
+          when: { t: 'crossX', x: 12 },
+          do: [{ t: 'spawnSpikes', x: 16, y: 14, w: 1, h: 1 }],
+          once: true,
+        },
+      ],
     };
   },
 };

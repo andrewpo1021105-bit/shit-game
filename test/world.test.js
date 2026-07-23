@@ -23,7 +23,7 @@ const ADAPTIVE = {
       row[at] = '.';
       out[y] = row.join('');
     }
-    return { tiles: out, taunt: `洞挖在第 ${at} 格` };
+    return { tiles: out };
   },
 };
 
@@ -108,7 +108,6 @@ test('過關後 phaseTimer 持續累加，通關動畫才有時間軸可用', ()
 test('adapt 在建立世界時就套用，地形一開始就是被改過的', () => {
   const w = createWorld(ADAPTIVE, createProfile());
   assert.equal(w.map[14][10], '.', '第 10 格應該被挖掉');
-  assert.equal(w.taunt, '洞挖在第 10 格');
 });
 
 test('adapt 不會弄髒關卡的原始 tiles', () => {
@@ -127,7 +126,29 @@ test('重生時重跑 adapt，並且讀得到最新的側寫', () => {
   resetLevel(w);
   assert.equal(w.map[14][10], '#', '舊的洞應該補回來');
   assert.equal(w.map[14][18], '.', '新的洞應該挖在側寫指的地方');
-  assert.equal(w.taunt, '洞挖在第 18 格');
+});
+
+test('刺突然冒出來時會發出事件，玩家才察覺得到', () => {
+  const POPPER = {
+    id: 98,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{ when: { t: 'crossX', x: 6 }, do: [{ t: 'spawnSpikes', x: 20, y: 14, w: 1, h: 1 }], once: true }],
+  };
+  const w = createWorld(POPPER, createProfile());
+  let sawSpike = false;
+  for (let i = 0; i < Math.round(3 / PHYSICS_DT); i++) {
+    updateWorld(w, RIGHT, PHYSICS_DT);
+    if (w.events.includes('spike')) {
+      sawSpike = true;
+      // 要在事件當下檢查——再跑下去玩家會踩到刺，重生時地圖就重建了
+      assert.equal(w.map[14][20], '^', '刺應該真的長在地圖上');
+      break;
+    }
+  }
+  assert.equal(sawSpike, true, '刺冒出來必須發出 spike 事件');
 });
 
 test('adapt 只在建立與重生時跑，遊玩途中地形不會自己變', () => {
@@ -159,13 +180,6 @@ test('重生會累加嘗試次數', () => {
   resetLevel(w);
   resetLevel(w);
   assert.equal(profile.attempts, 2);
-});
-
-test('taunt 顯示一段時間後會自己消失', () => {
-  const w = createWorld(ADAPTIVE, createProfile());
-  assert.ok(w.tauntTimer > 0);
-  run(w, NONE, 5);
-  assert.equal(w.tauntTimer, 0);
 });
 
 test('死亡事件會出現在 events 裡', () => {

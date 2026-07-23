@@ -45,7 +45,16 @@ export default {
   ],
   spawn: [3, 13],
   door: [24, 12],
-  traps: [],
+
+  // 你還在助跑的時候，落點那兩格突然長出刺。沒有預告。
+  // 安全落點因此只剩第 16、17 格——但那正好是被天花板壓矮的跳躍會到的地方。
+  traps: [
+    {
+      when: { t: 'crossX', x: 10 },
+      do: [{ t: 'spawnSpikes', x: 18, y: 14, w: 2, h: 1 }],
+      once: true,
+    },
+  ],
 
   // 你習慣跳多高，天花板就壓到那個高度以下。
   // 滿力跳會撞到天花板，上升速度歸零，然後直直掉進刺裡。
@@ -53,9 +62,6 @@ export default {
   adapt(tiles, profile) {
     const apex = median(profile.apexes);
     const row = apex !== null && apex >= TALL_JUMP ? CEIL_LOW : CEIL_HIGH;
-    const taunt = profile.apexes.length >= 2
-      ? `你習慣跳 ${apex} 像素高。天花板不讓你跳那麼高了。`
-      : null;
-    return { tiles: addSlab(tiles, row), taunt };
+    return { tiles: addSlab(tiles, row) };
   },
 };

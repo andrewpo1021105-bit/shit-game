@@ -129,20 +129,7 @@ export function createRenderer(canvas) {
     ctx.fillText(`DEATHS ${world.deaths}`, VIEW_W - 8, 12);
     ctx.textAlign = 'left';
 
-    if (world.tauntTimer > 0 && world.taunt) drawTaunt(world);
     if (world.phase === 'won') drawWinOverlay(world);
-  }
-
-  // 重生時當面告訴你它學到什麼——這是「改了一定講」那條鐵則的門面
-  function drawTaunt(world) {
-    const fade = clamp01(world.tauntTimer / 0.5);
-    ctx.textAlign = 'center';
-    ctx.font = '11px "Microsoft JhengHei", sans-serif';
-    ctx.globalAlpha = fade;
-    ctx.fillStyle = C.taunt;
-    ctx.fillText(world.taunt, VIEW_W / 2, 34);
-    ctx.globalAlpha = 1;
-    ctx.textAlign = 'left';
   }
 
   function drawWinOverlay(world) {

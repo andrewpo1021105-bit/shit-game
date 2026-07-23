@@ -55,11 +55,7 @@ export default {
     for (let x = FIELD_X0; x < FIELD_X0 + width; x++) cells[x] = '^';
     out[14] = cells.join('');
 
-    // 這行不是在講你，是在講關卡規則，所以沒有樣本也要說
-    const rule = `刺會在 ${RETRACT_AT} 秒後收起來。`;
-    const taunt = profile.restartDelays.length >= 2
-      ? `你上次死後 ${delay} 秒就衝出去了。${rule}`
-      : rule;
-    return { tiles: out, taunt };
+    // 不解釋。刺會不會收、什麼時候收，玩家得自己死出來。
+    return { tiles: out };
   },
 };

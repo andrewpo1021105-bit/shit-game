@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVELS } from '../src/game/levels/index.js';
 import { createProfile } from '../src/game/profile.js';
-import { MAP_W, MAP_H } from '../src/game/constants.js';
+import { applyAction } from '../src/game/traps.js';
+import { MAP_W, MAP_H, TILE } from '../src/game/constants.js';
 import { isSolid, isDeadly } from '../src/game/physics.js';
 
 test('每關的地圖尺寸都正確', () => {
@@ -129,16 +130,48 @@ test('第 5 關的刺一定留得下三秒後的活路', () => {
 
 test('第 2 關的洞會搬到你上次的落點', () => {
   const lv = LEVELS[1];
-  const { tiles, taunt } = lv.adapt(lv.tiles, { lastLandTile: 17, attempts: 1, landings: [17] });
+  const { tiles } = lv.adapt(lv.tiles, { ...createProfile(), lastLandTile: 17 });
   assert.equal(isSolid(tiles, 17, 14), false, '你上次站的那一格應該變成洞');
-  assert.ok(taunt.includes('17'), `應該當面講出它學到什麼，實際：${taunt}`);
 });
 
-test('第 2 關第一條命還沒有側寫，洞在預設位置且不出聲', () => {
+test('第 2 關第一條命還沒有側寫，洞在預設位置', () => {
   const lv = LEVELS[1];
-  const { tiles, taunt } = lv.adapt(lv.tiles, { lastLandTile: null, attempts: 0, landings: [] });
+  const { tiles } = lv.adapt(lv.tiles, createProfile());
   assert.equal(isSolid(tiles, 12, 14), false);
-  assert.equal(taunt, null, '第一次不該有話說——它還沒學到東西');
+});
+
+test('遊戲不對玩家解釋任何事：關卡不得回傳提示文字', () => {
+  for (const lv of LEVELS) {
+    if (!lv.adapt) continue;
+    const out = lv.adapt(lv.tiles, createProfile());
+    assert.equal(out.taunt, undefined, `第 ${lv.id} 關還在吐提示文字`);
+  }
+});
+
+// 命內的機關可以隨時翻臉，但翻完之後路還是要走得通
+test('就算所有陷阱同時爆發，關卡仍然可通關', () => {
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : { tiles: lv.tiles.slice() };
+    const world = {
+      map: built.tiles.slice(),
+      door: { x: lv.door[0], y: lv.door[1] },
+      profile: createProfile(),
+      player: { y: lv.spawn[1] * TILE, h: 14 },
+    };
+    for (const trap of built.traps ?? lv.traps ?? []) {
+      // 崩塌是設計上就會無限吃地板的懲罰，不列入這項檢查
+      if (trap.do.some((a) => a.t === 'crumbleFromLeft')) continue;
+      for (const action of trap.do) applyAction(world, action);
+    }
+
+    const floor = world.map[lv.spawn[1] + 1];
+    assert.ok(longestRun(floor, '.') <= MAX_JUMPABLE_GAP,
+      `第 ${lv.id} 關陷阱全開後出現跳不過的洞：${floor}`);
+    if (!lv.spikesRetract) {
+      assert.ok(longestRun(floor, '^') <= MAX_JUMPABLE_GAP,
+        `第 ${lv.id} 關陷阱全開後出現跳不過的刺牆：${floor}`);
+    }
+  }
 });
 
 test('第 1 關在陷阱不觸發的前提下是一條直路', () => {
