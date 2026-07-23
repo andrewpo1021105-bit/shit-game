@@ -406,26 +406,39 @@ test('中途放開跳躍鍵會跳得比較矮', () => {
   assert.ok(lPeak > hPeak, '短按應該跳得比長按矮');
 });
 
-test('土狼時間：離開平台邊緣 0.05 秒內仍可跳', () => {
-  const LEDGE = ['..........', '..........', '..........', '..........', '###.......'];
-  const p = createPlayer(2, 3);
+// 平台只到第 2 格，右邊是深不見底的空洞。下方必須留足夠空間，
+// 否則玩家掉一下就撞到地圖底部（越界視為實心）又變成著地。
+const LEDGE = [
+  '..........', '..........', '..........', '..........', '###.......',
+  '..........', '..........', '..........', '..........', '..........',
+];
+
+// 往右走到腳完全離開平台為止。不能用固定秒數——腳還有一半踩在地上時仍算著地。
+function walkOffLedge(p) {
   step(p, LEDGE, NONE, 0.2);
   p.vx = MAX_SPEED;
-  step(p, LEDGE, RIGHT, 0.05);          // 走出邊緣，開始下墜
-  assert.equal(p.grounded, false);
-  const yBefore = p.y;
+  let t = 0;
+  while (p.grounded && t < 1) {
+    updatePlayer(p, LEDGE, RIGHT, PHYSICS_DT);
+    t += PHYSICS_DT;
+  }
+  assert.equal(p.grounded, false, '應該已經走出平台邊緣');
+}
+
+test('土狼時間：離開平台邊緣 0.05 秒內仍可跳', () => {
+  const p = createPlayer(2, 3);
+  walkOffLedge(p);
+  step(p, LEDGE, RIGHT, 0.05);
   updatePlayer(p, LEDGE, { left: false, right: true, jump: true }, PHYSICS_DT);
-  assert.ok(p.vy < 0, `土狼時間內應該還能跳，vy=${p.vy}，y 從 ${yBefore}`);
+  assert.ok(p.vy < 0, `土狼時間內應該還能跳，vy=${p.vy}`);
 });
 
 test('土狼時間過期後不能再跳', () => {
-  const LEDGE = ['..........', '..........', '..........', '..........', '###.......'];
   const p = createPlayer(2, 3);
-  step(p, LEDGE, NONE, 0.2);
-  p.vx = MAX_SPEED;
-  step(p, LEDGE, RIGHT, 0.25);
+  walkOffLedge(p);
+  step(p, LEDGE, RIGHT, 0.15);          // 超過 0.10 秒的土狼時間
   updatePlayer(p, LEDGE, { left: false, right: true, jump: true }, PHYSICS_DT);
-  assert.ok(p.vy > 0, '早就該過期了，應該還在往下掉');
+  assert.ok(p.vy > 0, `早就該過期了，應該還在往下掉，vy=${p.vy}`);
 });
 
 test('跳躍緩衝：落地前按跳，一落地就自動起跳', () => {
