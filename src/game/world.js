@@ -55,7 +55,7 @@ export function updateWorld(world, input, dt) {
     }
     return;
   }
-  if (world.phase === 'won') return;
+  if (world.phase === 'won') { world.phaseTimer += dt; return; }
 
   const p = world.player;
   const prevX = p.x + p.w / 2;
@@ -86,6 +86,7 @@ export function updateWorld(world, input, dt) {
 
   if (touchingDoor(world) && world.phase === 'play') {
     world.phase = 'won';
+    world.phaseTimer = 0;      // 通關動畫從 0 開始累加
     world.events.push('win');
   }
 }

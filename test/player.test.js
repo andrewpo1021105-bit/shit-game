@@ -39,6 +39,26 @@ test('出生時落在指定格上並貼著地板', () => {
   assert.equal(p.y + p.h, 4 * TILE);
 });
 
+test('站著不動時 y 不會每幀微幅抖動', () => {
+  const p = createPlayer(2, 3);
+  step(p, FLAT, NONE, 0.3);
+  const y = p.y;
+  for (let i = 0; i < 240; i++) {
+    updatePlayer(p, FLAT, NONE, PHYSICS_DT);
+    assert.equal(p.y, y, `第 ${i} 幀 y 從 ${y} 變成 ${p.y}`);
+  }
+});
+
+test('走路時不會上下晃', () => {
+  const p = createPlayer(1, 3);
+  step(p, FLAT, NONE, 0.3);
+  const y = p.y;
+  for (let i = 0; i < 200; i++) {
+    updatePlayer(p, FLAT, RIGHT, PHYSICS_DT);
+    assert.equal(p.y, y, `第 ${i} 幀 y 從 ${y} 變成 ${p.y}`);
+  }
+});
+
 test('按右鍵會加速到最高速並封頂', () => {
   const p = createPlayer(1, 3);
   step(p, FLAT, RIGHT, 0.5);

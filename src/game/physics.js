@@ -10,10 +10,13 @@ export function isSolid(map, tx, ty) {
 }
 
 export function collides(map, box) {
+  // 碰撞箱佔的是半開區間 [x, x+w)。右／下邊界要用 ceil(...)-1，
+  // 用 (x+w-1) 在小數座標下會少算一格：靜止站在地板上時會被判定成沒碰到地板，
+  // 於是每幀被重力推下零點幾像素、下一幀又被彈回來，看起來就是人在原地上下抖。
   const x0 = Math.floor(box.x / TILE);
-  const x1 = Math.floor((box.x + box.w - 1) / TILE);
+  const x1 = Math.ceil((box.x + box.w) / TILE) - 1;
   const y0 = Math.floor(box.y / TILE);
-  const y1 = Math.floor((box.y + box.h - 1) / TILE);
+  const y1 = Math.ceil((box.y + box.h) / TILE) - 1;
   for (let ty = y0; ty <= y1; ty++)
     for (let tx = x0; tx <= x1; tx++)
       if (isSolid(map, tx, ty)) return true;

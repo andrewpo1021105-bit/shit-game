@@ -69,6 +69,19 @@ test('碰到門就過關', () => {
   assert.equal(w.phase, 'won');
 });
 
+test('過關後 phaseTimer 持續累加，通關動畫才有時間軸可用', () => {
+  const w = createWorld(LEVELS[0]);
+  const [dx, dy] = LEVELS[0].door;
+  w.player.x = dx * TILE + 4;
+  w.player.y = dy * TILE + 2;
+  updateWorld(w, NONE, PHYSICS_DT);
+  assert.equal(w.phase, 'won');
+  assert.equal(w.phaseTimer, 0);
+  run(w, NONE, 0.5);
+  assert.ok(w.phaseTimer > 0.4, `phaseTimer 應該有在跑，實際 ${w.phaseTimer}`);
+  assert.equal(w.phase, 'won', '過關後不該自己跳離 won 狀態');
+});
+
 test('死亡事件會出現在 events 裡', () => {
   const w = createWorld(LEVELS[0]);
   let sawDeath = false;

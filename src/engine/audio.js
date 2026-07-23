@@ -1,0 +1,49 @@
+export function createAudio() {
+  let ac = null;
+
+  function ensure() {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+
+  function tone(freq, endFreq, dur, type, gain) {
+    const c = ensure();
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, c.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, c.currentTime + dur);
+    g.gain.setValueAtTime(gain, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    osc.connect(g).connect(c.destination);
+    osc.start();
+    osc.stop(c.currentTime + dur);
+  }
+
+  function noise(dur, gain) {
+    const c = ensure();
+    const len = Math.floor(c.sampleRate * dur);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = c.createBufferSource();
+    const g = c.createGain();
+    g.gain.value = gain;
+    src.buffer = buf;
+    src.connect(g).connect(c.destination);
+    src.start();
+  }
+
+  function play(name) {
+    try {
+      if (name === 'jump') tone(320, 620, 0.10, 'square', 0.06);
+      else if (name === 'death') { noise(0.25, 0.12); tone(300, 60, 0.30, 'sawtooth', 0.07); }
+      else if (name === 'win') {
+        [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, f, 0.12, 'square', 0.07), i * 90));
+      }
+    } catch { /* 音效失敗不該讓遊戲停下來 */ }
+  }
+
+  return { play };
+}
