@@ -59,7 +59,7 @@ export default {
         //     一個精準跳搆得到，那又變成考手指了。
         {
           when: { t: 'touchDoor' },
-          do: [{ t: 'moveDoor', x: 0, y: -2 }],
+          do: [{ t: 'moveDoor', x: 0, y: -3 }],
           once: true,
         },
         // 三、門在頭頂上，你退開要助跑——後路也沒了

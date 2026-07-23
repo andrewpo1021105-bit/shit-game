@@ -276,6 +276,38 @@ test('會逃跑的門一路留下的坑，不會把地板吃到過不去', () =>
   }
 });
 
+// 門往上跳走之後還是得搆得到。玩家滿力跳升 51 px，
+// 所以門的垂直範圍必須跟「跳到最高點時的身體」有足夠的重疊。
+test('門不管怎麼跳，都還在跳得到的高度', () => {
+  const MAX_RISE = 51;
+  const MIN_OVERLAP = 6;   // 至少要有這麼多像素的重疊，不能只擦到邊
+
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    const world = {
+      map: (built.tiles ?? lv.tiles).slice(),
+      door: { x: lv.door[0], y: lv.door[1] },
+      profile: createProfile(),
+      player: { y: lv.spawn[1] * TILE, h: 14 },
+      hazards: [],
+    };
+    for (const t of built.traps ?? lv.traps ?? []) {
+      for (const a of t.do) if (a.t === 'moveDoor') applyAction(world, a);
+    }
+
+    // 玩家從站著到跳到最高點，身體掃過的整段高度都碰得到門
+    const standY = lv.spawn[1] * TILE + (TILE - 14);
+    const reachTop = standY - MAX_RISE;       // 最高點的頭頂
+    const reachBottom = standY + 14;          // 站著時的腳底
+    const doorTop = world.door.y * TILE;
+    const doorBottom = doorTop + TILE * 2;
+
+    const overlap = Math.min(reachBottom, doorBottom) - Math.max(reachTop, doorTop);
+    assert.ok(overlap >= MIN_OVERLAP,
+      `第 ${lv.id} 關的門跳到第 ${world.door.y} 列，跟滿力跳只重疊 ${overlap}px，搆不到`);
+  }
+});
+
 test('第 7 關永遠只封一條路，另一條必定是通的', () => {
   const lv = LEVELS.find((l) => l.id === 7);
   const low = lv.adapt(lv.tiles, { ...createProfile(), lastRoute: 'low' });
