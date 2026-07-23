@@ -40,7 +40,7 @@ export default {
     //     觸發器在勝負判定之前跑，所以這一下真的搶得走勝利。
     {
       when: { t: 'touchDoor' },
-      do: [{ t: 'moveDoor', x: 2, y: 0 }],
+      do: [{ t: 'moveDoor', x: 2, y: 0, leaveHole: true }],
       once: true,
     },
   ],

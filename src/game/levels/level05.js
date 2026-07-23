@@ -52,7 +52,7 @@ export default {
     // 三、跳過去、碰到門了——門在判定過關前一瞬間滑開三格。
     {
       when: { t: 'touchDoor' },
-      do: [{ t: 'moveDoor', x: 3, y: 0 }],
+      do: [{ t: 'moveDoor', x: 3, y: 0, leaveHole: true }],
       once: true,
     },
     // 四、追到牆角的門前，一塊方塊砸下來

@@ -81,7 +81,7 @@ export default {
         // 真的碰到門了——門往上跳走
         {
           when: { t: 'touchDoor' },
-          do: [{ t: 'moveDoor', x: 0, y: -2 }],
+          do: [{ t: 'moveDoor', x: 0, y: -2, leaveHole: true }],
           once: true,
         },
       ],

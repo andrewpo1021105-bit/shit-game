@@ -237,6 +237,45 @@ test('沒有任何梗在出生點附近就觸發——那等於預告', () => {
   }
 });
 
+// 會逃跑的門每跳一次就在原地留一個洞，跳很多次之後地板會被吃掉一大片。
+// 只套用一次的檢查看不到這件事，所以這裡把它重複觸發到門逃無可逃為止。
+test('會逃跑的門一路留下的坑，不會把地板吃到過不去', () => {
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    const traps = (built.traps ?? lv.traps ?? []).filter(
+      (t) => t.every && t.do.some((a) => a.t === 'moveDoor'),
+    );
+    if (traps.length === 0) continue;
+
+    const world = {
+      map: (built.tiles ?? lv.tiles).slice(),
+      door: { x: lv.door[0], y: lv.door[1] },
+      profile: createProfile(),
+      player: { y: lv.spawn[1] * TILE, h: 14 },
+      hazards: [],
+    };
+    // 跳到門停在牆邊為止
+    for (let i = 0; i < 20; i++) {
+      const before = world.door.x;
+      for (const t of traps) for (const a of t.do) applyAction(world, a);
+      if (world.door.x === before) break;
+    }
+
+    const floorRow = lv.spawn[1] + 1;
+    const floor = world.map[floorRow];
+
+    // 門最後停的地方必須踩得到，不然永遠碰不到它
+    assert.equal(isSolid([floor], world.door.x + 1, 0), true,
+      `第 ${lv.id} 關的門逃到第 ${world.door.x} 格，但腳下沒地板了：${floor}`);
+
+    for (const [start, len] of blockedRuns(floor)) {
+      if (start === 0 || start + len >= MAP_W) continue;
+      assert.ok(len <= MAX_JUMPABLE_GAP,
+        `第 ${lv.id} 關追門追到一半，第 ${start} 格出現 ${len} 格寬的坑：${floor}`);
+    }
+  }
+});
+
 test('第 7 關永遠只封一條路，另一條必定是通的', () => {
   const lv = LEVELS.find((l) => l.id === 7);
   const low = lv.adapt(lv.tiles, { ...createProfile(), lastRoute: 'low' });

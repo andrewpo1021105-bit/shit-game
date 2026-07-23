@@ -1,10 +1,11 @@
 import { median } from '../profile.js';
 
 const DOOR_X = 18;      // 門一開始就在明顯的地方
-const ZONE_X0 = 12;     // 進入這一段門就開始逃
-const ZONE_X1 = 26;
-const FAST = 0.11;      // 逃跑間隔（秒/格）——越小逃得越快
-const SLOW = 0.17;
+const ZONE_X0 = 15;     // 走到夠近門才開始逃
+const ZONE_X1 = 27;
+const HOP = 4;          // 門一次跳四格，並在原地留下兩格寬的洞
+const FAST = 0.75;      // 逃跑間隔（秒）——越小逃得越急
+const SLOW = 1.1;
 const BRISK_WALKER = 90;
 
 export default {
@@ -45,22 +46,26 @@ export default {
     return {
       tiles: tiles.slice(),
       traps: [
-        // 一、你一走近，門就開始往右退，退到牆角才停
+        // 一、你一走近，門就往右跳走，而且它原本站的地方跟著塌成洞。
+        //     所以你不只是追它，是要一路跨過它留下的坑。
+        //     跳到右牆就無處可逃，所以永遠追得到。
         {
           when: { t: 'enterRect', x: ZONE_X0, y: 1, w: ZONE_X1 - ZONE_X0, h: 15 },
-          do: [{ t: 'moveDoor', x: 1, y: 0 }],
+          do: [{ t: 'moveDoor', x: HOP, y: 0, leaveHole: true }],
           every: interval,
         },
-        // 二、你把它逼到牆角、正要走過去收尾——腳下的地板消失
-        {
-          when: { t: 'standOn', x: 25, y: 14 },
-          do: [{ t: 'removeTiles', x: 25, y: 14, w: 1, h: 3 }],
-          once: true,
-        },
-        // 三、真的碰到門了，門在判定過關前一瞬間往上跳走
+        // 二、真的碰到門了，門在判定過關前一瞬間往上跳走。
+        //     這一下刻意不留洞——門已經被逼到牆角，底下再塌就只剩
+        //     一個精準跳搆得到，那又變成考手指了。
         {
           when: { t: 'touchDoor' },
           do: [{ t: 'moveDoor', x: 0, y: -2 }],
+          once: true,
+        },
+        // 三、門在頭頂上，你退開要助跑——後路也沒了
+        {
+          when: { t: 'standOn', x: 25, y: 14 },
+          do: [{ t: 'removeTiles', x: 24, y: 14, w: 1, h: 3 }],
           once: true,
         },
       ],

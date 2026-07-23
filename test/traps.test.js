@@ -130,3 +130,39 @@ test('moveDoor 位移門的位置', () => {
   applyAction(world, { t: 'moveDoor', x: 2, y: -1 });
   assert.deepEqual(world.door, { x: 7, y: 4 });
 });
+
+test('門逃到底就停在牆邊，不會跑出地圖', () => {
+  const world = { map: ['....'], door: { x: 26, y: 5 } };
+  applyAction(world, { t: 'moveDoor', x: 10, y: 0 });
+  assert.equal(world.door.x, 27, '門是兩格寬，最右只能到第 27 格');
+});
+
+test('門搬走後原地塌成洞', () => {
+  const floor = '##############################';
+  const world = { map: [...Array(14).fill('..............................'), floor, floor, floor], door: { x: 10, y: 12 } };
+  applyAction(world, { t: 'moveDoor', x: 4, y: 0, leaveHole: true });
+  assert.equal(world.door.x, 14);
+  assert.equal(world.map[14][10], '.', '門原本站的地方應該塌了');
+  assert.equal(world.map[14][11], '.');
+  assert.equal(world.map[16][10], '.', '要塌到底，不是只塌一層');
+  assert.equal(world.map[14][14], '#', '門新位置的落腳處不能挖');
+  assert.equal(world.map[14][15], '#');
+});
+
+test('門只挪一格時，不會把自己的新落腳處挖掉', () => {
+  const floor = '##############################';
+  const world = { map: [...Array(14).fill('..............................'), floor, floor, floor], door: { x: 10, y: 12 } };
+  applyAction(world, { t: 'moveDoor', x: 1, y: 0, leaveHole: true });
+  assert.equal(world.map[14][10], '.', '空出來的那一格塌掉');
+  assert.equal(world.map[14][11], '#', '門還站在這格上，不能塌');
+  assert.equal(world.map[14][12], '#');
+});
+
+test('門往上跳走時，它原本站的整塊地板都會塌', () => {
+  const floor = '##############################';
+  const world = { map: [...Array(14).fill('..............................'), floor, floor, floor], door: { x: 10, y: 12 } };
+  applyAction(world, { t: 'moveDoor', x: 0, y: -2, leaveHole: true });
+  assert.equal(world.door.y, 10);
+  assert.equal(world.map[14][10], '.');
+  assert.equal(world.map[14][11], '.');
+});

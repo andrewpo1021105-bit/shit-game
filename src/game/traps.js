@@ -98,12 +98,25 @@ export function applyAction(world, action) {
         vx: action.vx, vy: 0, gravity: 0,
       });
       break;
-    case 'moveDoor':
+    case 'moveDoor': {
       // 門是兩格寬，夾在左右牆之間才不會逃出地圖。
       // 逃到底就無處可逃，所以「追門」永遠追得到。
+      const fromX = world.door.x, fromY = world.door.y;
       world.door.x = Math.min(MAP_W - 3, Math.max(1, world.door.x + action.x));
       world.door.y = Math.min(MAP_H - 4, Math.max(1, world.door.y + action.y));
+
+      // 門搬走之後，它原本站的地方塌成一個洞——追門因此要跨坑。
+      if (action.leaveHole) {
+        const restRow = fromY + 2;
+        const sameRow = world.door.y + 2 === restRow;
+        for (let x = fromX; x <= fromX + 1; x++) {
+          // 門新位置的落腳處不能挖，否則門會浮在半空中永遠碰不到
+          const stillUnderDoor = sameRow && x >= world.door.x && x <= world.door.x + 1;
+          if (!stillUnderDoor) paint(world, x, restRow, 1, world.map.length - restRow, '.');
+        }
+      }
       break;
+    }
     case 'crumbleFromLeft': {
       // 從最左邊還活著的那一格開始，一次吃掉一整column，往玩家逼近
       const row = world.map[action.y];
