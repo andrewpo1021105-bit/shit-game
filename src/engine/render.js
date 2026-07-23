@@ -134,6 +134,8 @@ export function createRenderer(canvas) {
 
     // 過關瞬間門會亮一下再收回去
     const glow = world.phase === 'won' ? Math.max(0, 1 - world.phaseTimer / 0.45) : 0;
+    // 假門必須跟真門畫得一模一樣，否則就不叫假門了
+    for (const d of world.decoys) drawDoor(d.x, d.y, 0);
     drawDoor(world.door.x, world.door.y, glow);
 
     for (const h of world.hazards) drawHazard(h);

@@ -84,6 +84,13 @@ export default {
           do: [{ t: 'moveDoor', x: 0, y: -3, leaveHole: true }],
           once: true,
         },
+        // 死了四次之後，路中間多一扇假門。你已經背熟路線了，
+        // 所以你會直直走過去。
+        {
+          when: { t: 'deathCount', n: 4 },
+          do: [{ t: 'spawnDecoy', x: 18, y: 12 }],
+          once: true,
+        },
       ],
     };
   },

@@ -10,17 +10,24 @@ const IDLE_SPEED = 6;   // 低於這個速度就算「站著不動」
 // 只在這裡（建立世界）與 resetLevel（重生）呼叫——這就是
 // 「絕不在玩家人在空中時改動任何東西」這條鐵則的實作保證。
 function buildMap(level, profile) {
-  if (!level.adapt) return { tiles: level.tiles.slice(), traps: level.traps };
+  const base = { traps: level.traps, decoys: level.decoys };
+  if (!level.adapt) return { ...base, tiles: level.tiles.slice() };
   const r = level.adapt(level.tiles, profile);
-  // adapt 也可以換掉這條命的陷阱設定（例如把「站多久算猶豫」調緊），
-  // 回傳新的陣列而不是改寫關卡本身，關卡資料才能一直保持乾淨
-  return { tiles: r.tiles.slice(), traps: r.traps ?? level.traps };
+  // adapt 也可以換掉這條命的陷阱與假門，回傳新的陣列而不是改寫關卡本身，
+  // 關卡資料才能一直保持乾淨
+  return {
+    tiles: r.tiles.slice(),
+    traps: r.traps ?? level.traps,
+    decoys: r.decoys ?? level.decoys,
+  };
 }
 
 function applyBuild(world) {
   const built = buildMap(world.level, world.profile);
   world.map = built.tiles;
   world.traps = built.traps ?? [];
+  // 假門：長得跟真門一模一樣，碰到就死
+  world.decoys = (built.decoys ?? []).map(([x, y]) => ({ x, y }));
   world.door = { x: world.level.door[0], y: world.level.door[1] };
   world.player = createPlayer(world.level.spawn[0], world.level.spawn[1]);
   world.trapState = createTrapState(world.traps);
@@ -104,10 +111,18 @@ export function resetLevel(world) {
   applyBuild(world);
 }
 
+function overlapsDoorAt(player, dx, dy) {
+  const x = dx * TILE, y = dy * TILE;
+  return player.x + player.w > x && player.x < x + TILE * 2
+      && player.y + player.h > y && player.y < y + TILE * 2;
+}
+
 function touchingDoor(world) {
-  const p = world.player;
-  const dx = world.door.x * TILE, dy = world.door.y * TILE;
-  return p.x + p.w > dx && p.x < dx + TILE * 2 && p.y + p.h > dy && p.y < dy + TILE * 2;
+  return overlapsDoorAt(world.player, world.door.x, world.door.y);
+}
+
+function touchingDecoy(world) {
+  return world.decoys.some((d) => overlapsDoorAt(world.player, d.x, d.y));
 }
 
 function kill(world) {
@@ -211,6 +226,8 @@ export function updateWorld(world, input, dt) {
 
   updateHazards(world, dt);
 
+  // 假門跟真門長得一樣。碰錯了就死——這是純粹的欺騙，跟操作無關。
+  if (touchingDecoy(world)) { kill(world); return; }
   if (hazardHitsPlayer(world)) { kill(world); return; }
   // 被地形夾住就死。砸下來的方塊落地時會就地變成實心，
   // 如果玩家正站在那一格，等於被壓在方塊裡——這條規則同時涵蓋

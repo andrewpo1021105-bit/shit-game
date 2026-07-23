@@ -89,6 +89,10 @@ export function applyAction(world, action) {
         seals: action.seals ?? false,
       });
       break;
+    case 'spawnDecoy':
+      // 憑空多出一扇門。玩家沒辦法分辨哪扇是真的。
+      world.decoys.push({ x: action.x, y: action.y });
+      break;
     case 'sweepSpike':
       // 橫著掃過來的刺。撞到牆就消失。
       world.hazards.push({

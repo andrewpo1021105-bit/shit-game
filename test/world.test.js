@@ -132,6 +132,47 @@ test('重生時重跑 adapt，並且讀得到最新的側寫', () => {
   assert.equal(w.map[14][18], '.', '新的洞應該挖在側寫指的地方');
 });
 
+test('碰到假門會死，碰到真門才過關', () => {
+  const TWO_DOORS = {
+    id: 90,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    decoys: [[16, 12]],
+    traps: [],
+  };
+  const w = createWorld(TWO_DOORS, createProfile());
+  w.player.x = 16 * TILE + 4;
+  w.player.y = 12 * TILE + 2;
+  updateWorld(w, NONE, PHYSICS_DT);
+  assert.equal(w.phase, 'dying', '碰到假門應該死');
+  assert.equal(w.deaths, 1);
+
+  const w2 = createWorld(TWO_DOORS, createProfile());
+  w2.player.x = 24 * TILE + 4;
+  w2.player.y = 12 * TILE + 2;
+  updateWorld(w2, NONE, PHYSICS_DT);
+  assert.equal(w2.phase, 'won', '碰到真門才過關');
+});
+
+test('重生會把突然冒出來的假門清掉', () => {
+  const POPPER = {
+    id: 89,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{ when: { t: 'afterDelay', s: 0.1 }, do: [{ t: 'spawnDecoy', x: 18, y: 12 }], once: true }],
+  };
+  const w = createWorld(POPPER, createProfile());
+  assert.deepEqual(w.decoys, [], '一開始沒有假門');
+  run(w, NONE, 0.3);
+  assert.equal(w.decoys.length, 1, '假門應該冒出來了');
+  resetLevel(w);
+  assert.deepEqual(w.decoys, [], '重生後不該留著上一條命冒出來的假門');
+});
+
 test('砸下來的方塊會落地變成實心方塊，擋在那裡', () => {
   const DROPPER = {
     id: 97,

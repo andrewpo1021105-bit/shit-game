@@ -149,6 +149,7 @@ test('每個缺口在該處天花板允許的跳躍高度下都跳得過去', ()
       profile: createProfile(),
       player: { y: lv.spawn[1] * TILE, h: 14 },
       hazards: [],
+      decoys: [],
     };
     for (const trap of built.traps ?? lv.traps ?? []) {
       if (trap.do.some((a) => a.t === 'crumbleFromLeft')) continue;
@@ -253,6 +254,7 @@ test('會逃跑的門一路留下的坑，不會把地板吃到過不去', () =>
       profile: createProfile(),
       player: { y: lv.spawn[1] * TILE, h: 14 },
       hazards: [],
+      decoys: [],
     };
     // 跳到門停在牆邊為止
     for (let i = 0; i < 20; i++) {
@@ -290,6 +292,7 @@ test('門不管怎麼跳，都還在跳得到的高度', () => {
       profile: createProfile(),
       player: { y: lv.spawn[1] * TILE, h: 14 },
       hazards: [],
+      decoys: [],
     };
     for (const t of built.traps ?? lv.traps ?? []) {
       for (const a of t.do) if (a.t === 'moveDoor') applyAction(world, a);
@@ -305,6 +308,38 @@ test('門不管怎麼跳，都還在跳得到的高度', () => {
     const overlap = Math.min(reachBottom, doorBottom) - Math.max(reachTop, doorTop);
     assert.ok(overlap >= MIN_OVERLAP,
       `第 ${lv.id} 關的門跳到第 ${world.door.y} 列，跟滿力跳只重疊 ${overlap}px，搆不到`);
+  }
+});
+
+// 假門是障礙物（碰到就死），所以它必須繞得過去：
+// 頭上要有足夠的淨空讓玩家跳過它，而且不能疊在真門上。
+test('假門都繞得過去，也不會疊在真門上', () => {
+  const DECOY_H = 2;        // 門兩格高
+  const NEED_CLEAR = 2;     // 門頂上至少要留兩格才跳得過
+
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    const tiles = built.tiles ?? lv.tiles;
+    const decoys = [
+      ...(built.decoys ?? lv.decoys ?? []),
+      // 陷阱裡憑空冒出來的假門也算
+      ...(built.traps ?? lv.traps ?? [])
+        .flatMap((t) => t.do)
+        .filter((a) => a.t === 'spawnDecoy')
+        .map((a) => [a.x, a.y]),
+    ];
+
+    for (const [dx, dy] of decoys) {
+      assert.ok(Math.abs(dx - lv.door[0]) >= 2 || Math.abs(dy - lv.door[1]) >= 2,
+        `第 ${lv.id} 關的假門 (${dx},${dy}) 跟真門疊在一起了`);
+
+      for (let y = dy - NEED_CLEAR; y < dy; y++) {
+        for (let x = dx; x < dx + DECOY_H; x++) {
+          assert.equal(isSolid(tiles, x, y), false,
+            `第 ${lv.id} 關的假門 (${dx},${dy}) 上方第 ${y} 列是實心的，跳不過去`);
+        }
+      }
+    }
   }
 });
 
@@ -360,6 +395,7 @@ test('就算所有陷阱同時爆發，關卡仍然可通關', () => {
       profile: createProfile(),
       player: { y: lv.spawn[1] * TILE, h: 14 },
       hazards: [],
+      decoys: [],
     };
     for (const trap of built.traps ?? lv.traps ?? []) {
       // 崩塌是設計上就會無限吃地板的懲罰，不列入這項檢查
