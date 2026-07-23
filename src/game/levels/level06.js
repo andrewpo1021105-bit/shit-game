@@ -78,17 +78,19 @@ export default {
           do: [{ t: 'dropBlock', x: 22, y: 6 }],
           once: true,
         },
-        // 真的碰到門了——門往上跳走
+        // 真的碰到門了——門往上跳走。
+        // 這裡不能留洞：門往上走還把腳下的地板帶走的話，
+        // 玩家會落無可落，那是沒有解法的死。
         {
           when: { t: 'touchDoor' },
-          do: [{ t: 'moveDoor', x: 0, y: -3, leaveHole: true }],
+          do: [{ t: 'moveDoor', x: 0, y: -3 }],
           once: true,
         },
         // 死了四次之後，路中間多一扇假門。你已經背熟路線了，
         // 所以你會直直走過去。
         {
           when: { t: 'deathCount', n: 4 },
-          do: [{ t: 'spawnDecoy', x: 18, y: 12 }],
+          do: [{ t: 'spawnDecoy', x: 18, y: 8 }],
           once: true,
         },
       ],

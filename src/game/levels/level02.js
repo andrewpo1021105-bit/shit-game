@@ -65,8 +65,9 @@ export default {
 
     return {
       tiles: digGap(tiles, start),
-      // 走廊中間先擺一扇假門。你老遠就看到「出口」，走過去就死。
-      decoys: [[17, 12]],
+      // 半空中吊一扇假門。走在它下面是安全的——
+      // 但它看起來就是出口，而這一關又逼你一直跳。
+      decoys: [[17, 8]],
       traps: [
         {
           when: { t: 'crossX', x: start + GAP_W },
@@ -81,14 +82,14 @@ export default {
         },
         // 門前最後一格，腳下的地板消失
         {
-          when: { t: 'standOn', x: 23, y: 14 },
+          when: { t: 'standOn', x: 22, y: 14 },
           do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
           once: true,
         },
         // 死了三次之後，門旁邊再多一扇假門——背下來的路線從這裡開始失效
         {
           when: { t: 'deathCount', n: 3 },
-          do: [{ t: 'spawnDecoy', x: 21, y: 12 }],
+          do: [{ t: 'spawnDecoy', x: 21, y: 8 }],
           once: true,
         },
       ],

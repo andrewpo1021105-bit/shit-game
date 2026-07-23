@@ -311,11 +311,18 @@ test('門不管怎麼跳，都還在跳得到的高度', () => {
   }
 });
 
-// 假門是障礙物（碰到就死），所以它必須繞得過去：
-// 頭上要有足夠的淨空讓玩家跳過它，而且不能疊在真門上。
-test('假門都繞得過去，也不會疊在真門上', () => {
-  const DECOY_H = 2;        // 門兩格高
-  const NEED_CLEAR = 2;     // 門頂上至少要留兩格才跳得過
+// 找出某一格往下數第一個踩得到的表面
+function surfaceBelow(tiles, x, fromY) {
+  for (let y = fromY; y < tiles.length; y++) if (isSolid(tiles, x, y)) return y;
+  return null;
+}
+
+// 假門是一個 2×2 的致命方塊，不是佈景。
+// 如果它壓在走道上，玩家用走的就會撞死，那條路等於封死——
+// 而跳過一個兩格寬兩格高的障礙物需要幀級精準，那是被禁止的技巧考試。
+// 所以規則是：假門必須高到「站在它正下方的玩家」碰不到。
+test('假門不會擋在走道上，也不會疊在真門上', () => {
+  const PLAYER_H = 14;
 
   for (const lv of LEVELS) {
     const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
@@ -333,11 +340,36 @@ test('假門都繞得過去，也不會疊在真門上', () => {
       assert.ok(Math.abs(dx - lv.door[0]) >= 2 || Math.abs(dy - lv.door[1]) >= 2,
         `第 ${lv.id} 關的假門 (${dx},${dy}) 跟真門疊在一起了`);
 
-      for (let y = dy - NEED_CLEAR; y < dy; y++) {
-        for (let x = dx; x < dx + DECOY_H; x++) {
-          assert.equal(isSolid(tiles, x, y), false,
-            `第 ${lv.id} 關的假門 (${dx},${dy}) 上方第 ${y} 列是實心的，跳不過去`);
-        }
+      const top = dy * TILE;
+      const bottom = top + TILE * 2;
+
+      for (let x = dx; x <= dx + 1; x++) {
+        const surface = surfaceBelow(tiles, x, dy + 2);
+        if (surface === null) continue;      // 底下是深淵，走不到那裡
+        const feet = surface * TILE;
+        const head = feet - PLAYER_H;
+        const overlap = Math.min(feet, bottom) - Math.max(head, top);
+        assert.ok(overlap <= 0,
+          `第 ${lv.id} 關的假門 (${dx},${dy}) 壓在第 ${surface} 列的走道上，`
+          + `重疊 ${overlap}px——玩家用走的就會撞死`);
+      }
+    }
+  }
+});
+
+// 踩到某格才觸發、卻又把那一格挖掉，等於當場處死，玩家沒有任何反應餘地。
+// 要挖就挖前面那一格（可以停下來或跳過去）或後面那一格（斷退路）。
+test('沒有陷阱會挖掉玩家正踩著的那一格', () => {
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    for (const trap of built.traps ?? lv.traps ?? []) {
+      if (trap.when.t !== 'standOn') continue;
+      for (const a of trap.do) {
+        if (a.t !== 'removeTiles') continue;
+        const hitsFeet = trap.when.x >= a.x && trap.when.x < a.x + a.w
+          && trap.when.y >= a.y && trap.when.y < a.y + a.h;
+        assert.equal(hitsFeet, false,
+          `第 ${lv.id} 關：踩到 (${trap.when.x},${trap.when.y}) 就挖掉同一格，這是無解的死`);
       }
     }
   }
