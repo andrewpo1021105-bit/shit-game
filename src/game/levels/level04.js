@@ -44,11 +44,26 @@ export default {
 
     return {
       tiles: tiles.slice(),
-      traps: [{
-        when: { t: 'enterRect', x: ZONE_X0, y: 1, w: ZONE_X1 - ZONE_X0, h: 15 },
-        do: [{ t: 'moveDoor', x: 1, y: 0 }],
-        every: interval,
-      }],
+      traps: [
+        // 一、你一走近，門就開始往右退，退到牆角才停
+        {
+          when: { t: 'enterRect', x: ZONE_X0, y: 1, w: ZONE_X1 - ZONE_X0, h: 15 },
+          do: [{ t: 'moveDoor', x: 1, y: 0 }],
+          every: interval,
+        },
+        // 二、你把它逼到牆角、正要走過去收尾——腳下的地板消失
+        {
+          when: { t: 'standOn', x: 25, y: 14 },
+          do: [{ t: 'removeTiles', x: 25, y: 14, w: 1, h: 3 }],
+          once: true,
+        },
+        // 三、真的碰到門了，門在判定過關前一瞬間往上跳走
+        {
+          when: { t: 'touchDoor' },
+          do: [{ t: 'moveDoor', x: 0, y: -2 }],
+          once: true,
+        },
+      ],
     };
   },
 };

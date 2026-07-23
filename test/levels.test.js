@@ -199,6 +199,44 @@ test('關掉陷阱之後，每一關都應該無聊到像教學關', () => {
   }
 });
 
+// 鐵則 6：要晚，而且要多。
+test('每一關至少有三個梗', () => {
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    const traps = (built.traps ?? lv.traps ?? []).filter(
+      (t) => !t.do.every((a) => a.t === 'noteRoute'),
+    );
+    assert.ok(traps.length >= 3, `第 ${lv.id} 關只有 ${traps.length} 個梗，太空了`);
+  }
+});
+
+test('每一關的最後一個梗都在門前發動', () => {
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    const traps = built.traps ?? lv.traps ?? [];
+
+    // 「門前」的定義：碰到門的瞬間，或踩在離門兩格以內的地板上
+    const atTheDoor = traps.some((t) => {
+      if (t.when.t === 'touchDoor') return true;
+      return t.when.t === 'standOn' && Math.abs(t.when.x - lv.door[0]) <= 2;
+    });
+    assert.ok(atTheDoor,
+      `第 ${lv.id} 關沒有任何梗在門前發動，玩家最後一段路太好走了`);
+  }
+});
+
+test('沒有任何梗在出生點附近就觸發——那等於預告', () => {
+  const TOO_EARLY = 6;
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile()) : {};
+    for (const t of built.traps ?? lv.traps ?? []) {
+      if (t.when.t !== 'crossX') continue;
+      assert.ok(t.when.x - lv.spawn[0] >= TOO_EARLY,
+        `第 ${lv.id} 關有個梗在第 ${t.when.x} 格就觸發，離出生點 ${lv.spawn[0]} 太近了`);
+    }
+  }
+});
+
 test('第 7 關永遠只封一條路，另一條必定是通的', () => {
   const lv = LEVELS.find((l) => l.id === 7);
   const low = lv.adapt(lv.tiles, { ...createProfile(), lastRoute: 'low' });

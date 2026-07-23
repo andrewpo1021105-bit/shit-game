@@ -47,11 +47,26 @@ export default {
 
     return {
       tiles: tiles.slice(),
-      traps: [{
-        when: { t: 'jumpCount', n: 1 },
-        do: [{ t: 'spawnSpikes', x: SPAN_X0, y: row, w: SPAN_X1 - SPAN_X0 + 1, h: 1, down: true }],
-        once: true,
-      }],
+      traps: [
+        // 一、你這輩子第一次按下跳躍鍵，天花板就照著你的高度長出倒刺
+        {
+          when: { t: 'jumpCount', n: 1 },
+          do: [{ t: 'spawnSpikes', x: SPAN_X0, y: row, w: SPAN_X1 - SPAN_X0 + 1, h: 1, down: true }],
+          once: true,
+        },
+        // 二、躲過倒刺、落地站穩，前面兩格地板跟著不見
+        {
+          when: { t: 'crossX', x: 18 },
+          do: [{ t: 'removeTiles', x: 20, y: 14, w: 2, h: 3 }],
+          once: true,
+        },
+        // 三、門前最後一格，一塊方塊砸下來
+        {
+          when: { t: 'standOn', x: 23, y: 14 },
+          do: [{ t: 'dropBlock', x: 23, y: 6 }],
+          once: true,
+        },
+      ],
     };
   },
 };

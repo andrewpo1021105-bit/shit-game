@@ -54,20 +54,26 @@ export default {
   // 另外不管你選哪條，前方都會突然冒出一根刺。
   traps: [
     { when: { t: 'crossX', x: GATE_X }, do: [{ t: 'noteRoute', y: DIVIDER_Y }], once: true },
+    // 不管你選哪條路，快走完的時候前方都會長出一根刺
     {
-      when: { t: 'enterRect', x: 14, y: 8, w: 3, h: 3 },
-      do: [{ t: 'spawnSpikes', x: 18, y: 10, w: 1, h: 1 }],
+      when: { t: 'enterRect', x: 17, y: 8, w: 3, h: 3 },
+      do: [{ t: 'spawnSpikes', x: 20, y: 10, w: 1, h: 1 }],
       once: true,
     },
     {
-      when: { t: 'enterRect', x: 14, y: 12, w: 3, h: 2 },
-      do: [{ t: 'spawnSpikes', x: 19, y: 14, w: 1, h: 1 }],
+      when: { t: 'enterRect', x: 17, y: 12, w: 3, h: 2 },
+      do: [{ t: 'spawnSpikes', x: 21, y: 14, w: 1, h: 1 }],
       once: true,
     },
-    // 兩條路匯合、門就在眼前——門往上飛到你搆不到的地方。
-    // 要回頭走上面那條平台才下得來。
+    // 兩條路匯合、門前最後一格，腳下的地板消失
     {
-      when: { t: 'crossX', x: 20 },
+      when: { t: 'standOn', x: 23, y: 14 },
+      do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
+      once: true,
+    },
+    // 真的碰到門了——門往上跳兩格，得跳起來才搆得到
+    {
+      when: { t: 'touchDoor' },
       do: [{ t: 'moveDoor', x: 0, y: -2 }],
       once: true,
     },

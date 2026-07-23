@@ -14,13 +14,15 @@ function run(s, seconds, input = NONE) {
   for (let i = 0; i < n; i++) updateSession(s, input, PHYSICS_DT);
 }
 
-// 直接把玩家塞到門上，省去真的走完一關
+// 直接把玩家塞到門上，省去真的走完一關。
+// 門會在判定過關前一瞬間閃開，所以要追著它的現在位置多塞幾次。
 function forceWin(s) {
-  const [dx, dy] = s.levels[s.index].door;
-  s.world.player.x = dx * TILE + 4;
-  s.world.player.y = dy * TILE + 2;
-  updateSession(s, NONE, PHYSICS_DT);
-  assert.equal(s.world.phase, 'won');
+  for (let i = 0; i < 6 && s.world.phase !== 'won'; i++) {
+    s.world.player.x = s.world.door.x * TILE + 4;
+    s.world.player.y = s.world.door.y * TILE + 2;
+    updateSession(s, NONE, PHYSICS_DT);
+  }
+  assert.equal(s.world.phase, 'won', '追著門塞了幾次還是沒過關');
 }
 
 test('一開始在第 1 關', () => {

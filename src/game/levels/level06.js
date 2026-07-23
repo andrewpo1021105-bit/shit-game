@@ -66,15 +66,22 @@ export default {
           every: CRUMBLE_EVERY,
         },
         // 你正要起跳過洞的時候，對面的落點長出一根刺
+        // 跳過洞、落地站穩的瞬間，前面長出一根刺
         {
-          when: { t: 'crossX', x: 12 },
-          do: [{ t: 'spawnSpikes', x: 18, y: 14, w: 1, h: 1 }],
+          when: { t: 'crossX', x: 16 },
+          do: [{ t: 'spawnSpikes', x: 19, y: 14, w: 1, h: 1 }],
           once: true,
         },
-        // 你才剛起步就有方塊砸下來，逼你在「不能停」的前提下還要閃
+        // 門前最後一格，方塊砸下來
         {
-          when: { t: 'crossX', x: 6 },
-          do: [{ t: 'dropBlock', x: 10, y: 2 }],
+          when: { t: 'standOn', x: 22, y: 14 },
+          do: [{ t: 'dropBlock', x: 22, y: 6 }],
+          once: true,
+        },
+        // 真的碰到門了——門往上跳走
+        {
+          when: { t: 'touchDoor' },
+          do: [{ t: 'moveDoor', x: 0, y: -2 }],
           once: true,
         },
       ],

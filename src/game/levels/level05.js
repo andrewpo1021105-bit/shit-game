@@ -42,11 +42,23 @@ export default {
       do: [{ t: 'addTiles', x: FIELD_X0, y: 14, w: WIDE, h: 1 }],
       once: true,
     },
-    // 你好不容易忍住等到刺收了，一路走到門前——門往旁邊挪了三格。
-    // 只挪一次，純粹是為了讓你那口氣吐不出來。
+    // 二、你好不容易忍住等到刺收了，一路走到門前最後一格——
+    //     腳下的地板消失。
     {
-      when: { t: 'crossX', x: 20 },
+      when: { t: 'standOn', x: 22, y: 14 },
+      do: [{ t: 'removeTiles', x: 22, y: 14, w: 1, h: 3 }],
+      once: true,
+    },
+    // 三、跳過去、碰到門了——門在判定過關前一瞬間滑開三格。
+    {
+      when: { t: 'touchDoor' },
       do: [{ t: 'moveDoor', x: 3, y: 0 }],
+      once: true,
+    },
+    // 四、追到牆角的門前，一塊方塊砸下來
+    {
+      when: { t: 'standOn', x: 26, y: 14 },
+      do: [{ t: 'dropBlock', x: 26, y: 6 }],
       once: true,
     },
   ],

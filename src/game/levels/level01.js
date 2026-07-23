@@ -23,10 +23,24 @@ export default {
   spawn: [3, 13],
   door: [24, 12],
   traps: [
-    // 走到門前，腳下三格地板無聲消失。不出聲、不預警、背後也不塌。
+    // 一、快到門了，腳下兩格地板無聲消失。不出聲、不預警、背後也不塌。
     {
-      when: { t: 'crossX', x: 16 },
-      do: [{ t: 'removeTiles', x: 17, y: 14, w: 3, h: 3 }],
+      when: { t: 'crossX', x: 17 },
+      do: [{ t: 'removeTiles', x: 19, y: 14, w: 2, h: 3 }],
+      once: true,
+    },
+    // 二、你跳過去了、站穩了、門就在旁邊——你踩上去的那一格，
+    //     前面最後一塊地板消失。連反應時間都沒有。
+    {
+      when: { t: 'standOn', x: 22, y: 14 },
+      do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
+      once: true,
+    },
+    // 三、你真的碰到門了——就在判定過關的前一瞬間，門滑開兩格。
+    //     觸發器在勝負判定之前跑，所以這一下真的搶得走勝利。
+    {
+      when: { t: 'touchDoor' },
+      do: [{ t: 'moveDoor', x: 2, y: 0 }],
       once: true,
     },
   ],

@@ -85,19 +85,23 @@ test('掉出畫面下緣算死亡', () => {
 
 test('碰到門就過關', () => {
   const w = createWorld(LEVELS[0]);
-  const [dx, dy] = LEVELS[0].door;
-  w.player.x = dx * TILE + 4;
-  w.player.y = dy * TILE + 2;
-  updateWorld(w, NONE, PHYSICS_DT);
+  // 第 1 關的門會在判定過關前一瞬間閃開，所以要追著它塞幾次
+  for (let i = 0; i < 6 && w.phase !== 'won'; i++) {
+    w.player.x = w.door.x * TILE + 4;
+    w.player.y = w.door.y * TILE + 2;
+    updateWorld(w, NONE, PHYSICS_DT);
+  }
   assert.equal(w.phase, 'won');
 });
 
 test('過關後 phaseTimer 持續累加，通關動畫才有時間軸可用', () => {
   const w = createWorld(LEVELS[0]);
-  const [dx, dy] = LEVELS[0].door;
-  w.player.x = dx * TILE + 4;
-  w.player.y = dy * TILE + 2;
-  updateWorld(w, NONE, PHYSICS_DT);
+  // 第 1 關的門會在判定過關前一瞬間閃開，所以要追著它塞幾次
+  for (let i = 0; i < 6 && w.phase !== 'won'; i++) {
+    w.player.x = w.door.x * TILE + 4;
+    w.player.y = w.door.y * TILE + 2;
+    updateWorld(w, NONE, PHYSICS_DT);
+  }
   assert.equal(w.phase, 'won');
   assert.equal(w.phaseTimer, 0);
   run(w, NONE, 0.5);
