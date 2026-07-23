@@ -2,7 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorld, updateWorld, resetLevel } from '../src/game/world.js';
 import { LEVELS } from '../src/game/levels/index.js';
+import { createProfile } from '../src/game/profile.js';
 import { PHYSICS_DT, TILE, RESPAWN_DELAY } from '../src/game/constants.js';
+
+// 一個地板完整、沒有陷阱的測試關卡；adapt 會在第 10 格挖洞並留下一句話
+const FLOOR = '##############################';
+const AIR = '#............................#';
+const ADAPTIVE = {
+  id: 99,
+  name: '測試用',
+  tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+  spawn: [3, 13],
+  door: [24, 12],
+  traps: [],
+  adapt(tiles, profile) {
+    const at = profile.lastLandTile ?? 10;
+    const out = tiles.slice();
+    for (let y = 14; y <= 16; y++) {
+      const row = out[y].split('');
+      row[at] = '.';
+      out[y] = row.join('');
+    }
+    return { tiles: out, taunt: `洞挖在第 ${at} 格` };
+  },
+};
 
 const NONE = { left: false, right: false, jump: false };
 const RIGHT = { left: false, right: true, jump: false };
@@ -80,6 +103,69 @@ test('過關後 phaseTimer 持續累加，通關動畫才有時間軸可用', ()
   run(w, NONE, 0.5);
   assert.ok(w.phaseTimer > 0.4, `phaseTimer 應該有在跑，實際 ${w.phaseTimer}`);
   assert.equal(w.phase, 'won', '過關後不該自己跳離 won 狀態');
+});
+
+test('adapt 在建立世界時就套用，地形一開始就是被改過的', () => {
+  const w = createWorld(ADAPTIVE, createProfile());
+  assert.equal(w.map[14][10], '.', '第 10 格應該被挖掉');
+  assert.equal(w.taunt, '洞挖在第 10 格');
+});
+
+test('adapt 不會弄髒關卡的原始 tiles', () => {
+  const w = createWorld(ADAPTIVE, createProfile());
+  w.map[14] = '..............................';
+  assert.equal(ADAPTIVE.tiles[14], FLOOR, '原始關卡資料必須維持乾淨');
+  createWorld(ADAPTIVE, createProfile());
+  assert.equal(ADAPTIVE.tiles[14], FLOOR);
+});
+
+test('重生時重跑 adapt，並且讀得到最新的側寫', () => {
+  const profile = createProfile();
+  const w = createWorld(ADAPTIVE, profile);
+  assert.equal(w.map[14][10], '.');
+  profile.lastLandTile = 18;
+  resetLevel(w);
+  assert.equal(w.map[14][10], '#', '舊的洞應該補回來');
+  assert.equal(w.map[14][18], '.', '新的洞應該挖在側寫指的地方');
+  assert.equal(w.taunt, '洞挖在第 18 格');
+});
+
+test('adapt 只在建立與重生時跑，遊玩途中地形不會自己變', () => {
+  const profile = createProfile();
+  const w = createWorld(ADAPTIVE, profile);
+  const before = w.map.join('|');
+  profile.lastLandTile = 18;          // 側寫在遊玩途中改變
+  run(w, RIGHT, 0.5);
+  assert.equal(w.map.join('|'), before, '這條命之內地形必須紋風不動');
+});
+
+test('墜落穿過地板線時會把落點記進側寫', () => {
+  const profile = createProfile();
+  const w = createWorld(ADAPTIVE, profile);
+  runUntilDeath(w);
+  assert.equal(profile.lastLandTile, 10, `應該記下掉進洞的那一格，實際 ${profile.lastLandTile}`);
+});
+
+test('出生的那一瞬間不算落地，不會污染側寫', () => {
+  const profile = createProfile();
+  const w = createWorld(ADAPTIVE, profile);
+  run(w, NONE, 0.3);
+  assert.equal(profile.lastLandTile, null, '站在原地不該產生落點紀錄');
+});
+
+test('重生會累加嘗試次數', () => {
+  const profile = createProfile();
+  const w = createWorld(ADAPTIVE, profile);
+  resetLevel(w);
+  resetLevel(w);
+  assert.equal(profile.attempts, 2);
+});
+
+test('taunt 顯示一段時間後會自己消失', () => {
+  const w = createWorld(ADAPTIVE, createProfile());
+  assert.ok(w.tauntTimer > 0);
+  run(w, NONE, 5);
+  assert.equal(w.tauntTimer, 0);
 });
 
 test('死亡事件會出現在 events 裡', () => {

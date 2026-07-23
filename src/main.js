@@ -1,6 +1,6 @@
 import { PHYSICS_DT, VIEW_W, VIEW_H } from './game/constants.js';
 import { LEVELS } from './game/levels/index.js';
-import { createWorld, updateWorld, resetLevel } from './game/world.js';
+import { createSession, updateSession, restartLevel } from './game/session.js';
 import { createInput } from './engine/input.js';
 import { startLoop } from './engine/loop.js';
 import { initSprites } from './engine/sprites.js';
@@ -16,25 +16,21 @@ const renderer = createRenderer(canvas);
 const input = createInput(window);
 const audio = createAudio();
 
-let world = createWorld(LEVELS[0]);
+const session = createSession(LEVELS);
 let shake = 0;
 
 function step(dt) {
-  if (input.consumeRestart()) {
-    const deaths = world.deaths;
-    resetLevel(world);
-    world.deaths = deaths;
-  }
-  updateWorld(world, input.state, dt);
-  for (const e of world.events) {
+  if (input.consumeRestart()) restartLevel(session);
+  updateSession(session, input.state, dt);
+  for (const e of session.world.events) {
     audio.play(e);
     if (e === 'death') shake = 5;
   }
   shake = Math.max(0, shake - dt * 20);
 }
 
-function render(alpha) {
-  renderer.draw(world, alpha, shake);
+function render() {
+  renderer.draw(session, shake);
 }
 
 startLoop(step, render, PHYSICS_DT);
