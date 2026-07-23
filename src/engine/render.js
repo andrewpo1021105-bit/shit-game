@@ -49,6 +49,21 @@ export function createRenderer(canvas) {
     ctx.fillRect(px + 10, py + 12, 2, 2);
   }
 
+  // 刺：底座 + 兩根往上的尖齒，尖端染紅
+  function drawSpike(x, y) {
+    const px = x * TILE, py = y * TILE;
+    ctx.fillStyle = '#2a2f45';
+    ctx.fillRect(px, py + 12, TILE, 4);
+    for (let tooth = 0; tooth < 2; tooth++) {
+      const cx = px + 4 + tooth * 8;
+      for (let r = 0; r < 12; r++) {
+        const w = Math.max(1, Math.round((r / 11) * 6));
+        ctx.fillStyle = r < 3 ? '#e04b4b' : '#c9d2e8';
+        ctx.fillRect(cx - Math.floor(w / 2), py + 12 - r, w, 1);
+      }
+    }
+  }
+
   function drawDoor(dx, dy, glow) {
     const px = dx * TILE, py = dy * TILE;
     ctx.fillStyle = `rgba(120,220,140,${(0.10 + 0.5 * glow).toFixed(3)})`;
@@ -86,8 +101,10 @@ export function createRenderer(canvas) {
 
     const map = world.map;
     for (let y = 0; y < map.length; y++)
-      for (let x = 0; x < map[y].length; x++)
+      for (let x = 0; x < map[y].length; x++) {
         if (map[y][x] === '#') drawTile(map, x, y);
+        else if (map[y][x] === '^') drawSpike(x, y);
+      }
 
     // 過關瞬間門會亮一下再收回去
     const glow = world.phase === 'won' ? Math.max(0, 1 - world.phaseTimer / 0.45) : 0;
@@ -180,7 +197,8 @@ export function createRenderer(canvas) {
     ctx.fillStyle = C.scan;
     ctx.fillText(typed('ANALYSING...', t, SWEEP_IN + 0.05, 0.35), cx, cy - 12);
 
-    if (t > 1.0) {
+    // 沒有樣本就只掃描不下結論——寧可沉默也不要講沒根據的話
+    if (t > 1.0 && session.analysis) {
       ctx.font = '11px "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#d8dae6';
       const line = typed(session.analysis, t, 1.0, 0.45);

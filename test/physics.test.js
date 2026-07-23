@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isSolid, collides, moveAndCollide, onGround } from '../src/game/physics.js';
+import { isSolid, isDeadly, collides, moveAndCollide, onGround, touchesDeadly } from '../src/game/physics.js';
+
+const SPIKED = [
+  '..........',
+  '..........',
+  '..........',
+  '..........',
+  '###^^#####',
+];
 
 // 10 格寬、5 格高的小地圖，最底下一排是地板
 const MAP = [
@@ -17,6 +25,22 @@ test('左右與天花板超出邊界視為實心，玩家不會飛出地圖', ()
   assert.equal(isSolid(MAP, 10, 0), true);
   assert.equal(isSolid(MAP, 0, 0), false);
   assert.equal(isSolid(MAP, 5, 3), true);
+});
+
+test('刺是實心的，站得上去', () => {
+  assert.equal(isSolid(SPIKED, 3, 4), true);
+  assert.equal(isDeadly(SPIKED, 3, 4), true);
+  assert.equal(isDeadly(SPIKED, 0, 4), false, '普通地板不會殺人');
+});
+
+test('站到刺上會被判定為碰到刺', () => {
+  // 刺在第 3、4 格，玩家站在第 3 格上方
+  assert.equal(touchesDeadly(SPIKED, { x: 51, y: 50, w: 10, h: 14 }), true);
+  assert.equal(touchesDeadly(SPIKED, { x: 3, y: 50, w: 10, h: 14 }), false);
+});
+
+test('人在半空中時碰不到腳下的刺', () => {
+  assert.equal(touchesDeadly(SPIKED, { x: 51, y: 10, w: 10, h: 14 }), false);
 });
 
 test('地圖下緣是深淵，不是實心——掉進洞裡要能一路掉出去', () => {

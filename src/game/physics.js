@@ -1,12 +1,23 @@
 import { TILE } from './constants.js';
 
-export function isSolid(map, tx, ty) {
-  // 地圖下緣是深淵：掉出去要能一路掉到死，不能踩在虛空上
-  if (ty >= map.length) return false;
-  if (ty < 0) return true;
+// 地磚字元：'.' 空氣、'#' 實心、'^' 刺（實心且會殺人）
+export const AIR = '.';
+export const SPIKE = '^';
+
+export function tileAt(map, tx, ty) {
+  if (ty < 0) return '#';
+  if (ty >= map.length) return AIR;   // 地圖下緣是深淵
   const row = map[ty];
-  if (tx < 0 || tx >= row.length) return true;
-  return row[tx] === '#';
+  if (tx < 0 || tx >= row.length) return '#';
+  return row[tx];
+}
+
+export function isSolid(map, tx, ty) {
+  return tileAt(map, tx, ty) !== AIR;
+}
+
+export function isDeadly(map, tx, ty) {
+  return tileAt(map, tx, ty) === SPIKE;
 }
 
 export function collides(map, box) {
@@ -45,4 +56,17 @@ export function moveAndCollide(map, box, dx, dy) {
 
 export function onGround(map, box) {
   return collides(map, { x: box.x, y: box.y + 1, w: box.w, h: box.h });
+}
+
+// 碰撞箱有沒有碰到刺。刺是實心的，所以玩家是「站在刺上」而不是陷進去——
+// 底邊要多探一個像素（跟 onGround 同樣的道理），否則正好站在刺頂上不算數。
+export function touchesDeadly(map, box) {
+  const x0 = Math.floor(box.x / TILE);
+  const x1 = Math.ceil((box.x + box.w) / TILE) - 1;
+  const y0 = Math.floor(box.y / TILE);
+  const y1 = Math.ceil((box.y + box.h + 1) / TILE) - 1;
+  for (let ty = y0; ty <= y1; ty++)
+    for (let tx = x0; tx <= x1; tx++)
+      if (isDeadly(map, tx, ty)) return true;
+  return false;
 }

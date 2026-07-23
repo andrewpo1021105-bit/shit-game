@@ -39,11 +39,20 @@ test('過關後先讓 CLEAR! 停留，時間到才開始轉場', () => {
   assert.equal(s.phase, 'transition');
 });
 
-test('轉場時會帶著一句側寫結果', () => {
+test('有樣本時轉場會講出它學到什麼', () => {
+  const s = createSession(LEVELS);
+  s.profile.landings.push(16, 16);
+  s.profile.lastLandTile = 16;
+  forceWin(s);
+  run(s, CLEAR_HOLD + 0.1);
+  assert.ok(s.analysis && s.analysis.includes('16'), `應該講出落點，實際：${s.analysis}`);
+});
+
+test('樣本不足時轉場保持沉默', () => {
   const s = createSession(LEVELS);
   forceWin(s);
   run(s, CLEAR_HOLD + 0.1);
-  assert.ok(s.analysis.length > 0, '轉場一定要講出它學到什麼');
+  assert.equal(s.analysis, null, '沒根據就不要開口');
 });
 
 test('黑幕蓋滿之前不換關，蓋滿之後才換', () => {
