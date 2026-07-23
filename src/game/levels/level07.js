@@ -64,6 +64,12 @@ export default {
       do: [{ t: 'spawnSpikes', x: 19, y: 14, w: 1, h: 1 }],
       once: true,
     },
+    // 兩條路匯合之後，門前再砸一塊
+    {
+      when: { t: 'crossX', x: 20 },
+      do: [{ t: 'dropBlock', x: 22, y: 2 }],
+      once: true,
+    },
   ],
 
   // 你上次走哪條，這次那條就封死。

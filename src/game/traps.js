@@ -28,6 +28,8 @@ function triggered(when, ctx) {
       return ctx.jumps >= when.n;
     case 'idleFor':
       return ctx.idle >= when.s;
+    case 'standOn':
+      return ctx.grounded && ctx.footX === when.x && ctx.footY === when.y;
     case 'touchDoor':
       return ctx.atDoor === true;
     default:
@@ -73,6 +75,24 @@ export function applyAction(world, action) {
     case 'spawnSpikes':
       // 沒有預告，就是突然長出來。看得見是唯一的公平性保證。
       paint(world, action.x, action.y, action.w, action.h, '^');
+      break;
+    case 'dropBlock':
+      // 從天花板砸下來的方塊。砸到人會死，落地後變成擋路的實心方塊。
+      world.hazards.push({
+        kind: 'block',
+        x: action.x * TILE, y: action.y * TILE,
+        w: TILE, h: TILE,
+        vx: 0, vy: 0, gravity: 1200,
+      });
+      break;
+    case 'sweepSpike':
+      // 橫著掃過來的刺。撞到牆就消失。
+      world.hazards.push({
+        kind: 'spike',
+        x: action.x * TILE, y: action.y * TILE,
+        w: TILE, h: TILE,
+        vx: action.vx, vy: 0, gravity: 0,
+      });
       break;
     case 'moveDoor':
       world.door.x += action.x;

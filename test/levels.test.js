@@ -157,6 +157,7 @@ test('就算所有陷阱同時爆發，關卡仍然可通關', () => {
       door: { x: lv.door[0], y: lv.door[1] },
       profile: createProfile(),
       player: { y: lv.spawn[1] * TILE, h: 14 },
+      hazards: [],
     };
     for (const trap of built.traps ?? lv.traps ?? []) {
       // 崩塌是設計上就會無限吃地板的懲罰，不列入這項檢查

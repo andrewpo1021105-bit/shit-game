@@ -128,6 +128,85 @@ test('重生時重跑 adapt，並且讀得到最新的側寫', () => {
   assert.equal(w.map[14][18], '.', '新的洞應該挖在側寫指的地方');
 });
 
+test('砸下來的方塊會落地變成實心方塊，擋在那裡', () => {
+  const DROPPER = {
+    id: 97,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{ when: { t: 'afterDelay', s: 0.1 }, do: [{ t: 'dropBlock', x: 20, y: 2 }], once: true }],
+  };
+  const w = createWorld(DROPPER, createProfile());
+  run(w, NONE, 0.2);
+  assert.equal(w.hazards.length, 1, '方塊應該正在掉');
+  run(w, NONE, 2);
+  assert.equal(w.hazards.length, 0, '落地後就不該還是活動危險物');
+  assert.equal(w.map[13][20], '#', '方塊應該變成實心地形');
+});
+
+test('被砸下來的方塊打中會死', () => {
+  const ONHEAD = {
+    id: 96,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{ when: { t: 'afterDelay', s: 0.1 }, do: [{ t: 'dropBlock', x: 3, y: 2 }], once: true }],
+  };
+  const w = createWorld(ONHEAD, createProfile());
+  run(w, NONE, 2);
+  assert.ok(w.deaths >= 1, '站在正下方不動應該被砸死');
+});
+
+test('橫掃的刺撞到牆就消失，不會永遠留在場上', () => {
+  const SWEEP = {
+    id: 95,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    // 走高空路線，才不會半路掃到站在原地的玩家而中斷測試
+    traps: [{ when: { t: 'afterDelay', s: 0.1 }, do: [{ t: 'sweepSpike', x: 20, y: 5, vx: -90 }], once: true }],
+  };
+  const w = createWorld(SWEEP, createProfile());
+  run(w, NONE, 0.2);
+  assert.equal(w.hazards.length, 1);
+  run(w, NONE, 6);
+  assert.equal(w.hazards.length, 0, '掃到左牆就該消失');
+  assert.equal(w.deaths, 0, '高空掃過不該碰到玩家');
+});
+
+test('橫掃的刺掃到玩家會死', () => {
+  const SWEEP = {
+    id: 93,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{ when: { t: 'afterDelay', s: 0.1 }, do: [{ t: 'sweepSpike', x: 20, y: 13, vx: -90 }], once: true }],
+  };
+  const w = createWorld(SWEEP, createProfile());
+  run(w, NONE, 5);
+  assert.ok(w.deaths >= 1, '站在原地應該被掃到');
+});
+
+test('重生會清掉場上所有危險物', () => {
+  const SWEEP = {
+    id: 94,
+    name: '測試用',
+    tiles: [FLOOR, ...Array(13).fill(AIR), FLOOR, FLOOR, FLOOR],
+    spawn: [3, 13],
+    door: [24, 12],
+    traps: [{ when: { t: 'afterDelay', s: 0.1 }, do: [{ t: 'sweepSpike', x: 20, y: 13, vx: -90 }], once: true }],
+  };
+  const w = createWorld(SWEEP, createProfile());
+  run(w, NONE, 0.2);
+  assert.equal(w.hazards.length, 1);
+  resetLevel(w);
+  assert.deepEqual(w.hazards, [], '重生後場上不該留著上一條命的危險物');
+});
+
 test('刺突然冒出來時會發出事件，玩家才察覺得到', () => {
   const POPPER = {
     id: 98,

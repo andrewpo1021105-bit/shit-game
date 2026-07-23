@@ -54,6 +54,12 @@ export default {
       do: [{ t: 'spawnSpikes', x: 6, y: 14, w: 1, h: 1 }],
       once: true,
     },
+    // 一根刺從右邊掃過來。你得一邊算會動的洞，一邊閃它。
+    {
+      when: { t: 'crossX', x: 7 },
+      do: [{ t: 'sweepSpike', x: 27, y: 13, vx: -60 }],
+      once: true,
+    },
   ],
 
   // 洞移到你上次的落點。你跳幾次它移幾次。

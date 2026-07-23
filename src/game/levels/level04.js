@@ -4,7 +4,10 @@ import { TILE } from '../constants.js';
 const FIELD_X0 = 10;   // 刺陣的範圍
 const FIELD_X1 = 21;
 const AIRTIME = 0.67;  // 滿力跳的滯空秒數
-const STEP_MIN = 2;    // 間距下限：至少要留得下落腳處
+// 刺是成對的（兩格寬），每一跳都得是真的跳，不能用走的蹭過去。
+// 間距下限訂在 4，成對之後才留得下兩格落腳處。
+const SPIKE_PAIR = 2;
+const STEP_MIN = 4;
 const STEP_MAX = 5;
 
 export default {
@@ -33,8 +36,15 @@ export default {
   spawn: [3, 13],
   door: [24, 12],
 
-  // 走進刺陣中段時，正前方再冒一根出來
   traps: [
+    // 你一踏進刺陣，右邊就有一根刺橫著掃過來。
+    // 於是你不能慢慢挑落腳點——得在它掃到之前把整片穿過去，或者跳過它。
+    {
+      when: { t: 'crossX', x: 8 },
+      do: [{ t: 'sweepSpike', x: 27, y: 13, vx: -70 }],
+      once: true,
+    },
+    // 中段再冒一根。第 16 格在兩種間距下都是落腳處，所以這一根一定踩得到。
     {
       when: { t: 'crossX', x: 14 },
       do: [{ t: 'spawnSpikes', x: 16, y: 14, w: 1, h: 1 }],
@@ -53,7 +63,9 @@ export default {
 
     const out = tiles.slice();
     const cells = out[14].split('');
-    for (let x = FIELD_X0; x <= FIELD_X1; x += step) cells[x] = '^';
+    for (let x = FIELD_X0; x <= FIELD_X1; x += step) {
+      for (let i = 0; i < SPIKE_PAIR && x + i <= FIELD_X1; i++) cells[x + i] = '^';
+    }
     out[14] = cells.join('');
 
     return { tiles: out };

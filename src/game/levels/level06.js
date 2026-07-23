@@ -70,6 +70,12 @@ export default {
           do: [{ t: 'spawnSpikes', x: 16, y: 14, w: 1, h: 1 }],
           once: true,
         },
+        // 你才剛起步就有方塊砸下來，逼你在「不能停」的前提下還要閃
+        {
+          when: { t: 'crossX', x: 6 },
+          do: [{ t: 'dropBlock', x: 10, y: 2 }],
+          once: true,
+        },
       ],
     };
   },

@@ -63,6 +63,30 @@ export function createRenderer(canvas) {
     }
   }
 
+  // 會動的危險物。跟地形明顯不同色，玩家一眼看得出「這東西在動」。
+  function drawHazard(h) {
+    const px = Math.round(h.x), py = Math.round(h.y);
+    if (h.kind === 'block') {
+      ctx.fillStyle = '#6b4a2a';
+      ctx.fillRect(px, py, h.w, h.h);
+      ctx.fillStyle = '#9c6f43';
+      ctx.fillRect(px + 1, py + 1, h.w - 2, 3);
+      ctx.fillStyle = '#e04b4b';
+      ctx.fillRect(px, py + h.h - 2, h.w, 2);
+      return;
+    }
+    // 橫掃的刺：尖端朝著行進方向
+    const dir = h.vx < 0 ? -1 : 1;
+    ctx.fillStyle = '#2a2f45';
+    ctx.fillRect(px + (dir < 0 ? 10 : 0), py + 2, 6, h.h - 4);
+    for (let r = 0; r < 11; r++) {
+      const w = Math.max(1, Math.round((r / 10) * 6));
+      ctx.fillStyle = r < 3 ? '#e04b4b' : '#c9d2e8';
+      const ax = dir < 0 ? px + r : px + h.w - 1 - r;
+      ctx.fillRect(ax, py + 8 - Math.floor(w / 2), 1, w);
+    }
+  }
+
   function drawDoor(dx, dy, glow) {
     const px = dx * TILE, py = dy * TILE;
     ctx.fillStyle = `rgba(120,220,140,${(0.10 + 0.5 * glow).toFixed(3)})`;
@@ -108,6 +132,8 @@ export function createRenderer(canvas) {
     // 過關瞬間門會亮一下再收回去
     const glow = world.phase === 'won' ? Math.max(0, 1 - world.phaseTimer / 0.45) : 0;
     drawDoor(world.door.x, world.door.y, glow);
+
+    for (const h of world.hazards) drawHazard(h);
 
     // 死了看不到人（爆掉），過關也看不到人（走進門裡了）
     if (world.phase === 'play') {

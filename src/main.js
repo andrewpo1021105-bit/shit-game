@@ -26,6 +26,7 @@ function step(dt) {
     audio.play(e);
     if (e === 'death') shake = 5;
     if (e === 'spike') shake = 3;
+    if (e === 'thud') shake = 4;
   }
   shake = Math.max(0, shake - dt * 20);
 }

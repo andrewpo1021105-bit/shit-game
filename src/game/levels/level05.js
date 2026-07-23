@@ -42,6 +42,12 @@ export default {
       do: [{ t: 'addTiles', x: FIELD_X0, y: 14, w: WIDE, h: 1 }],
       once: true,
     },
+    // 你好不容易忍住等到刺收了，才剛走出去就有方塊砸下來
+    {
+      when: { t: 'crossX', x: 13 },
+      do: [{ t: 'dropBlock', x: 17, y: 2 }],
+      once: true,
+    },
   ],
 
   // 你死了之後多快開始動，決定刺陣有多寬。

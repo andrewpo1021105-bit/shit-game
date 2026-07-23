@@ -1,8 +1,8 @@
 import { createPlayer, updatePlayer } from './player.js';
 import { createTrapState, checkTriggers, applyAction } from './traps.js';
 import { createProfile, noteLanding, noteAttempt, noteApex, noteSpeed, noteRestartDelay } from './profile.js';
-import { touchesDeadly } from './physics.js';
-import { TILE, VIEW_H, RESPAWN_DELAY, AIRBORNE_MIN } from './constants.js';
+import { touchesDeadly, isSolid, collides } from './physics.js';
+import { TILE, VIEW_W, VIEW_H, RESPAWN_DELAY, AIRBORNE_MIN } from './constants.js';
 
 const IDLE_SPEED = 6;   // 低於這個速度就算「站著不動」
 
@@ -33,8 +33,54 @@ function applyBuild(world) {
   world.takeoffY = null;   // 起跳當下的高度，用來算這一跳升了多少
   world.apexY = null;      // 這一跳到過的最高點
   world.firstInputAt = null;
+  world.hazards = [];
   world.phase = 'play';
   world.phaseTimer = 0;
+}
+
+function setTile(world, tx, ty, ch) {
+  if (ty < 0 || ty >= world.map.length) return;
+  const row = world.map[ty].split('');
+  if (tx < 0 || tx >= row.length) return;
+  row[tx] = ch;
+  world.map[ty] = row.join('');
+}
+
+// 會動的危險物：砸下來的方塊、橫掃的刺
+function updateHazards(world, dt) {
+  const alive = [];
+  for (const h of world.hazards) {
+    h.vy += h.gravity * dt;
+    h.x += h.vx * dt;
+    h.y += h.vy * dt;
+
+    if (h.kind === 'block') {
+      const tx = Math.round(h.x / TILE);
+      const row = Math.floor((h.y + h.h - 1) / TILE);
+      if (isSolid(world.map, tx, row + 1)) {
+        // 落地後就地變成實心方塊，從此擋在那裡
+        setTile(world, tx, row, '#');
+        world.events.push('thud');
+        continue;
+      }
+    } else if (h.kind === 'spike') {
+      // 撞到牆就消失
+      const edge = h.vx < 0 ? h.x : h.x + h.w - 1;
+      if (isSolid(world.map, Math.floor(edge / TILE), Math.floor((h.y + h.h / 2) / TILE))) continue;
+    }
+
+    if (h.y > VIEW_H + TILE || h.x < -TILE || h.x > VIEW_W + TILE) continue;
+    alive.push(h);
+  }
+  world.hazards = alive;
+}
+
+function hazardHitsPlayer(world) {
+  const p = world.player;
+  for (const h of world.hazards) {
+    if (p.x + p.w > h.x && p.x < h.x + h.w && p.y + p.h > h.y && p.y < h.y + h.h) return true;
+  }
+  return false;
 }
 
 export function createWorld(level, profile = createProfile()) {
@@ -148,14 +194,25 @@ export function updateWorld(world, input, dt) {
     deaths: world.deaths,
     jumps: world.jumps,
     idle: world.idle,
+    grounded: p.grounded,
+    footX: Math.floor((p.x + p.w / 2) / TILE),
+    footY: Math.floor((p.y + p.h) / TILE),
     atDoor: touchingDoor(world),
   });
   for (const a of actions) {
     applyAction(world, a);
     // 刺彈出來要有聲音與震動——玩家不會被告知原因，但一定要察覺「剛剛有東西冒出來」
     if (a.t === 'spawnSpikes') world.events.push('spike');
+    if (a.t === 'dropBlock' || a.t === 'sweepSpike') world.events.push('spike');
   }
 
+  updateHazards(world, dt);
+
+  if (hazardHitsPlayer(world)) { kill(world); return; }
+  // 被地形夾住就死。砸下來的方塊落地時會就地變成實心，
+  // 如果玩家正站在那一格，等於被壓在方塊裡——這條規則同時涵蓋
+  // 所有「憑空長出實心地形」的陷阱。
+  if (collides(world.map, p)) { kill(world); return; }
   if (touchesDeadly(world.map, p)) { kill(world); return; }
   if (p.y > VIEW_H + TILE) { kill(world); return; }
 
