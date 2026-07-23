@@ -11,12 +11,17 @@ const MAP = [
   '##########',
 ];
 
-test('超出邊界視為實心，玩家不會飛出地圖', () => {
+test('左右與天花板超出邊界視為實心，玩家不會飛出地圖', () => {
   assert.equal(isSolid(MAP, -1, 0), true);
   assert.equal(isSolid(MAP, 0, -1), true);
   assert.equal(isSolid(MAP, 10, 0), true);
   assert.equal(isSolid(MAP, 0, 0), false);
   assert.equal(isSolid(MAP, 5, 3), true);
+});
+
+test('地圖下緣是深淵，不是實心——掉進洞裡要能一路掉出去', () => {
+  assert.equal(isSolid(MAP, 3, 5), false);
+  assert.equal(isSolid(MAP, 3, 99), false);
 });
 
 test('碰撞箱重疊實心格時回報碰撞', () => {

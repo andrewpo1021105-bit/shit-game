@@ -1529,6 +1529,12 @@ git commit -m "feat: 組裝主程式與合成音效，第 1 關可玩"
 
 ---
 
+## 實作過程中對本計畫的修正
+
+1. **`node --test test/` 在 Node 24 不吃目錄形式**，會把 `test` 當成模組去 require 而報 `MODULE_NOT_FOUND`。改用 glob：`node --test "test/*.test.js"`。
+2. **`isSolid` 的地圖下緣不能是實心**。原本寫成「超出邊界一律實心」，導致玩家掉進陷阱洞後會停在地圖底部、永遠死不了。正確模型是：天花板與左右牆實心，**下緣是深淵**（`ty >= map.length` 回傳 `false`）。
+3. **兩處測試 fixture 寫錯**（實作是對的）：物理測試把洞挖在本來就有牆的那一行；world 測試用固定秒數跑到死，跑滿前會重生又再死一次、位置無法預期，改成跑到 `phase === 'dying'` 為止。
+
 ## 完成定義
 
 - `node --test test/` 全綠。

@@ -1,7 +1,9 @@
 import { TILE } from './constants.js';
 
 export function isSolid(map, tx, ty) {
-  if (ty < 0 || ty >= map.length) return true;
+  // 地圖下緣是深淵：掉出去要能一路掉到死，不能踩在虛空上
+  if (ty >= map.length) return false;
+  if (ty < 0) return true;
   const row = map[ty];
   if (tx < 0 || tx >= row.length) return true;
   return row[tx] === '#';
