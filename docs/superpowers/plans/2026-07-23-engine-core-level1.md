@@ -238,9 +238,10 @@ test('onGround 只在腳下一像素有實心時為真', () => {
 });
 
 test('腳下的地板被挖掉後 onGround 立刻變假', () => {
+  // 洞挖在第 7 行（避開第 5 行那面牆），玩家正站在洞的正上方
   const holed = MAP.slice();
-  holed[4] = '#####.####';
-  assert.equal(onGround(holed, { x: 82, y: 50, w: 10, h: 14 }), false);
+  holed[4] = '#######.##';
+  assert.equal(onGround(holed, { x: 114, y: 50, w: 10, h: 14 }), false);
 });
 ```
 
