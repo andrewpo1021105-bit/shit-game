@@ -1,37 +1,17 @@
 import { median } from '../profile.js';
+import { TILE } from '../constants.js';
 
-// 天花板固定在第 9 列。滿力跳（升 51 px）會撞到它，
-// 升 34 px 的中等跳則過得去——而中等跳足以跨過兩格刺，
-// 所以不管側寫怎麼變，這一關永遠有解。
-const SLAB_ROW = 9;
-const SPIKE_ROW = 10;
-const SLAB_X0 = 11;
-const SLAB_X1 = 20;
-
-// 超過這個高度就算「你習慣把跳躍鍵按到底」
-const TALL_JUMP = 35;
-
-function addSlab(tiles, spiked) {
-  const out = tiles.slice();
-  const slab = out[SLAB_ROW].split('');
-  for (let x = SLAB_X0; x <= SLAB_X1; x++) slab[x] = '#';
-  out[SLAB_ROW] = slab.join('');
-
-  // 你習慣跳滿的話，天花板底下就掛滿倒刺。
-  // 撞頂不再只是彈回來，是直接死在上面。
-  if (spiked) {
-    const teeth = out[SPIKE_ROW].split('');
-    for (let x = SLAB_X0 + 1; x <= SLAB_X1 - 1; x++) teeth[x] = 'v';
-    out[SPIKE_ROW] = teeth.join('');
-  }
-  return out;
-}
+const SPAN_X0 = 8;    // 倒刺長出來的範圍
+const SPAN_X1 = 22;
+const ROW_MIN = 8;    // 太高就沒有威脅
+const ROW_MAX = 12;   // 太低會擋到走路（玩家站著佔第 13 列）
+const DEFAULT_APEX = 51;
 
 export default {
   id: 3,
   name: '你頭很硬',
 
-  // 地板中間兩格是刺。天花板由 adapt() 依你的跳躍習慣放。
+  // 一條平路，中間只有一格小坑。關掉陷阱的話，這關無聊得像教學關。
   tiles: [
     '##############################',
     '#............................#',
@@ -47,36 +27,31 @@ export default {
     '#............................#',
     '#............................#',
     '#............................#',
-    '#############^^###############',
-    '##############################',
-    '##############################',
+    '###############.##############',
+    '###############.##############',
+    '###############.##############',
   ],
   spawn: [3, 13],
   door: [24, 12],
+  traps: [],
 
-  // 三段連續：跳過第一個刺坑 → 第二個刺坑突然長出來 → 方塊砸下來擋在門前。
-  // 全程頭上有天花板壓著，所以每一跳都不能跳滿。
-  traps: [
-    // 你還在助跑，第二個刺坑就先長好了
-    {
-      when: { t: 'crossX', x: 10 },
-      do: [{ t: 'spawnSpikes', x: 18, y: 14, w: 2, h: 1 }],
-      once: true,
-    },
-    // 正要跳第二個坑時，落點旁邊砸下一塊方塊。
-    // 砸下來的時間跟你跑到那裡的時間幾乎一樣，砸到人就死。
-    {
-      when: { t: 'crossX', x: 17 },
-      do: [{ t: 'dropBlock', x: 21, y: 2 }],
-      once: true,
-    },
-  ],
-
-  // 你習慣跳多高，天花板就壓到那個高度以下。
-  // 滿力跳會撞到天花板，上升速度歸零，然後直直掉進刺裡。
-  // 反制：改成點跳。矮的弧線反而過得去。
+  // 你這輩子第一次按下跳躍鍵的那一瞬間，天花板就照著你慣用的高度長出倒刺。
+  // 這一格小坑用輕輕一點就跳得過去，所以難的完全不是操作——
+  // 難的是你的手指已經習慣把鍵按到底了。
   adapt(tiles, profile) {
-    const apex = median(profile.apexes);
-    return { tiles: addSlab(tiles, apex !== null && apex >= TALL_JUMP) };
+    const apex = median(profile.apexes) ?? DEFAULT_APEX;
+    // 玩家站著時頭頂在 y=210。照習慣跳的話頭頂會到 210-apex，
+    // 倒刺就長在那個高度，剛好插到他。
+    const headY = (13 * TILE + (TILE - 14)) - apex;
+    const row = Math.min(ROW_MAX, Math.max(ROW_MIN, Math.floor(headY / TILE)));
+
+    return {
+      tiles: tiles.slice(),
+      traps: [{
+        when: { t: 'jumpCount', n: 1 },
+        do: [{ t: 'spawnSpikes', x: SPAN_X0, y: row, w: SPAN_X1 - SPAN_X0 + 1, h: 1, down: true }],
+        once: true,
+      }],
+    };
   },
 };

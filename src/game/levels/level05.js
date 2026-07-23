@@ -42,11 +42,11 @@ export default {
       do: [{ t: 'addTiles', x: FIELD_X0, y: 14, w: WIDE, h: 1 }],
       once: true,
     },
-    // 你好不容易忍住等到刺收了，才剛走出去，一面五格高的牆就開始往下壓。
-    // 這面牆跳不上去，只能在它落地前衝過去——這關前半逼你等，後半逼你跑。
+    // 你好不容易忍住等到刺收了，一路走到門前——門往旁邊挪了三格。
+    // 只挪一次，純粹是為了讓你那口氣吐不出來。
     {
-      when: { t: 'crossX', x: 10 },
-      do: [{ t: 'dropBlock', x: 15, y: 1, rows: 5, seals: true, gravity: 400 }],
+      when: { t: 'crossX', x: 20 },
+      do: [{ t: 'moveDoor', x: 3, y: 0 }],
       once: true,
     },
   ],

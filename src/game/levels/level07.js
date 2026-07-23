@@ -64,10 +64,11 @@ export default {
       do: [{ t: 'spawnSpikes', x: 19, y: 14, w: 1, h: 1 }],
       once: true,
     },
-    // 兩條路匯合之後，門前落下一面跳不過去的牆。慢了就被關在外面。
+    // 兩條路匯合、門就在眼前——門往上飛到你搆不到的地方。
+    // 要回頭走上面那條平台才下得來。
     {
-      when: { t: 'crossX', x: 18 },
-      do: [{ t: 'dropBlock', x: 22, y: 1, rows: 5, seals: true, gravity: 400 }],
+      when: { t: 'crossX', x: 20 },
+      do: [{ t: 'moveDoor', x: 0, y: -2 }],
       once: true,
     },
   ],

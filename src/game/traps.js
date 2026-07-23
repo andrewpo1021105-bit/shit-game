@@ -1,4 +1,4 @@
-import { TILE } from './constants.js';
+import { TILE, MAP_W, MAP_H } from './constants.js';
 import { noteRoute } from './profile.js';
 
 export function createTrapState(traps) {
@@ -74,7 +74,7 @@ export function applyAction(world, action) {
       break;
     case 'spawnSpikes':
       // 沒有預告，就是突然長出來。看得見是唯一的公平性保證。
-      paint(world, action.x, action.y, action.w, action.h, '^');
+      paint(world, action.x, action.y, action.w, action.h, action.down ? 'v' : '^');
       break;
     case 'dropBlock':
       // 從天花板砸下來的東西。砸到人會死，落地後就地變成實心地形。
@@ -99,8 +99,10 @@ export function applyAction(world, action) {
       });
       break;
     case 'moveDoor':
-      world.door.x += action.x;
-      world.door.y += action.y;
+      // 門是兩格寬，夾在左右牆之間才不會逃出地圖。
+      // 逃到底就無處可逃，所以「追門」永遠追得到。
+      world.door.x = Math.min(MAP_W - 3, Math.max(1, world.door.x + action.x));
+      world.door.y = Math.min(MAP_H - 4, Math.max(1, world.door.y + action.y));
       break;
     case 'crumbleFromLeft': {
       // 從最左邊還活著的那一格開始，一次吃掉一整column，往玩家逼近

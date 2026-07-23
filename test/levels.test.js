@@ -174,6 +174,31 @@ test('每個缺口在該處天花板允許的跳躍高度下都跳得過去', ()
   }
 });
 
+// 鐵則 5：出其不意優先於技術難度。
+// 檢查方式——把陷阱全部關掉，每一關的地面都應該無聊得像教學關：
+// 頂多一個小跳，沒有連續跳、沒有密集刺陣。玩家的死因必須來自被騙，不是手滑。
+test('關掉陷阱之後，每一關都應該無聊到像教學關', () => {
+  const MAX_HOPS = 1;         // 最多一個缺口要跳
+  const MAX_HOP_WIDTH = 2;    // 而且窄到隨便跳都過得去
+
+  for (const lv of LEVELS) {
+    const tiles = lv.adapt ? lv.adapt(lv.tiles, createProfile()).tiles : lv.tiles;
+    const floorRow = lv.spawn[1] + 1;
+
+    const hops = blockedRuns(tiles[floorRow])
+      .filter(([start, len]) => start !== 0 && start + len < MAP_W)
+      // 會自己收起來的刺是用等的，不是用跳的，不算在跳躍次數裡
+      .filter(([start]) => !(lv.spikesRetract && tiles[floorRow][start] === '^'));
+
+    assert.ok(hops.length <= MAX_HOPS,
+      `第 ${lv.id} 關光是地形就要跳 ${hops.length} 次，這是技巧考試不是整人：${tiles[floorRow]}`);
+    for (const [start, len] of hops) {
+      assert.ok(len <= MAX_HOP_WIDTH,
+        `第 ${lv.id} 關第 ${start} 格起有 ${len} 格寬的缺口，太需要精準度了`);
+    }
+  }
+});
+
 test('第 7 關永遠只封一條路，另一條必定是通的', () => {
   const lv = LEVELS.find((l) => l.id === 7);
   const low = lv.adapt(lv.tiles, { ...createProfile(), lastRoute: 'low' });
