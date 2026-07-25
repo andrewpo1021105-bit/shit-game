@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
-    "dev": "python -m http.server 8080"
+    "dev": "python -m http.server 8080",
+    "build": "node tools/build-single.mjs"
   }
 }
