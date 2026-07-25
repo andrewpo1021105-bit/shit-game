@@ -1,4 +1,4 @@
-import { TILE, MAP_W, MAP_H } from './constants.js';
+import { TILE, MAP_W, MAP_H, DEFAULT_TUNE } from './constants.js';
 import { noteRoute } from './profile.js';
 
 export function createTrapState(traps) {
@@ -140,7 +140,8 @@ export function applyAction(world, action) {
       break;
     case 'setTune':
       // 物理突變。只覆蓋指定的欄位，其餘維持這條命目前的值。
-      Object.assign(world.tune, action.tune);
+      // 有些檢查用的假世界沒有 tune，退回預設值就好，不該炸掉。
+      world.tune = { ...(world.tune ?? DEFAULT_TUNE), ...action.tune };
       break;
     case 'swapDoor': {
       // 真門跟假門互換身分。配 touchDoor 觸發器時特別惡毒：

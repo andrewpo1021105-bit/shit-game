@@ -21,12 +21,18 @@ let shake = 0;
 
 function step(dt) {
   if (input.consumeRestart()) restartLevel(session);
+  // 報告是要傳給朋友的，所以一定要複製得走
+  if (input.consumeCopy() && session.phase === 'finished') {
+    const text = [`搞人遊戲 — 總共死了 ${session.totalDeaths} 次`, ...session.report].join('\n');
+    navigator.clipboard?.writeText(text).catch(() => {});
+  }
   updateSession(session, input.state, dt);
   for (const e of session.world.events) {
     audio.play(e);
     if (e === 'death') shake = 5;
     if (e === 'spike') shake = 3;
     if (e === 'thud') shake = 4;
+    if (e === 'flip') shake = 6;
   }
   shake = Math.max(0, shake - dt * 20);
 }

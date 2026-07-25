@@ -118,3 +118,56 @@ export function describeProfile(profile) {
   if (bestN < 2) return `落點飄忽：${n} 次沒有兩次一樣`;
   return `你 ${n} 次裡有 ${bestN} 次落在第 ${best} 格`;
 }
+
+// 第 12 關結束後那份「遊戲對你的評語」。
+//
+// 鐵律跟 describeProfile 一樣，而且更嚴：每一行都必須是可重現的事實陳述。
+// 措辭可以帶刺，但不准捏造統計——我們沒有母體資料，所以絕不出現
+// 「比 87% 的人急」這種話。刺要來自「它真的算得這麼細」，不是來自唬爛。
+// 樣本不足的指標整行不出現，寧可報告短一點。
+export function buildReport(profile) {
+  const lines = [];
+
+  const land = describeProfile(profile);
+  if (land) lines.push(land);
+
+  const apex = median(profile.apexes);
+  if (apex !== null) {
+    lines.push(apex >= 45
+      ? `你每次都跳滿：中位數 ${apex} px，幾乎沒有點跳過`
+      : `你的跳躍中位數只有 ${apex} px，你很少把鍵按到底`);
+  }
+
+  const speed = median(profile.speeds);
+  if (speed !== null) {
+    lines.push(speed >= 100
+      ? `你全程用最高速衝：中位數 ${speed} px/s`
+      : `你走得很慢：中位數 ${speed} px/s，最高速是 112`);
+  }
+
+  const delay = median(profile.restartDelays);
+  if (delay !== null) {
+    lines.push(delay <= 0.2
+      ? `死了之後你平均 ${delay} 秒就再按鍵，你從來沒想過為什麼`
+      : `死了之後你平均等 ${delay} 秒才動`);
+  }
+
+  const lead = median(profile.jumpLeads);
+  if (lead !== null) lines.push(`你習慣在離坑 ${lead} px 的地方起跳`);
+
+  const runs = profile.hesitations.length;
+  if (runs >= 2) {
+    const h = countHesitations(profile);
+    lines.push(h === 0
+      ? `${runs} 條命裡你一次都沒有停下來想`
+      : `${runs} 條命裡你有 ${h} 次停下來或往回走`);
+  }
+
+  if (profile.routes.length >= 2) {
+    const high = profile.routes.filter((r) => r === 'high').length;
+    lines.push(`有上下兩條路時，你 ${profile.routes.length} 次裡走了 ${high} 次上面`);
+  }
+
+  lines.push(`總共重來 ${profile.attempts} 次。`);
+  return lines;
+}

@@ -41,6 +41,8 @@ export function createAudio() {
       else if (name === 'spike') { noise(0.06, 0.10); tone(900, 1600, 0.07, 'square', 0.05); }
       else if (name === 'thud') { noise(0.12, 0.14); tone(160, 50, 0.14, 'square', 0.08); }
       else if (name === 'death') { noise(0.25, 0.12); tone(300, 60, 0.30, 'sawtooth', 0.07); }
+      // 反轉沒有實體，所以這一聲就是它唯一的存在證明：一個由高滑到低的倒轉音
+      else if (name === 'flip') { tone(1200, 300, 0.18, 'sawtooth', 0.07); tone(300, 1200, 0.18, 'square', 0.04); }
       else if (name === 'win') {
         [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, f, 0.12, 'square', 0.07), i * 90));
       }

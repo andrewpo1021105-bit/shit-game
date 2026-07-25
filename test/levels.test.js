@@ -97,6 +97,10 @@ function extremeProfile(v) {
     restartDelays: [v, v],
     lastRoute: v > 0 ? 'high' : 'low',
     routes: ['high', 'low'],
+    lastJumpLead: v,
+    jumpLeads: [v, v],
+    lastHesitation: v > 0 ? 1 : 0,
+    hesitations: [v > 0 ? 1 : 0, 0],
   };
 }
 

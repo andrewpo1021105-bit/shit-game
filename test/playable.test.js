@@ -9,6 +9,11 @@ import { PHYSICS_DT, TILE } from '../src/game/constants.js';
 // 一個很笨的機器人：往右走、前面沒路就跳、門吊在頭上就跳。
 // 它不會倒退、不會等時機、不會算落點——正因為這麼笨，它才是好的守門員：
 // 只要有任何一關需要它做不到的事，那一關就違反了「難度不加在手指上」。
+//
+// 唯一的例外是左右反轉：機器人讀得到 world.flipped 並自己反過來按。
+// 這是刻意的——反轉如果連「知道它反了」都救不了，那就是在考手速。
+// 讓機器人察覺得到，這條測試守住的命題就變成
+// 「只要你注意到反轉，零精準操作就過得去」。
 function needsJump(world, lookahead) {
   const p = world.player;
   const footRow = Math.floor((p.y + p.h) / TILE);
@@ -36,7 +41,13 @@ function play(level, { waitFirst, hold, lookahead }) {
     if (!idle && world.phase === 'play' && world.player.grounded && needsJump(world, lookahead)) {
       jumpFrames = Math.round(hold / PHYSICS_DT);
     }
-    const input = { left: false, right: !idle, jump: jumpFrames > 0 };
+    // 它想去的方向永遠是右邊；反轉時要按的鍵才是左邊
+    const goRight = !idle;
+    const input = {
+      left: goRight && world.flipped,
+      right: goRight && !world.flipped,
+      jump: jumpFrames > 0,
+    };
     if (jumpFrames > 0) jumpFrames--;
 
     updateWorld(world, input, PHYSICS_DT);

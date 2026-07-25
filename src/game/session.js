@@ -1,4 +1,4 @@
-import { createProfile, describeProfile } from './profile.js';
+import { createProfile, describeProfile, buildReport } from './profile.js';
 import { createWorld, updateWorld, resetLevel } from './world.js';
 
 // 轉場時間軸（秒）
@@ -19,6 +19,7 @@ export function createSession(levels) {
     analysis: '',           // 轉場時唸出來的那行側寫結果
     revealed: false,
     totalDeaths: 0,
+    report: [],             // 全部跑完之後那份「它對你的評語」
   };
 }
 
@@ -26,7 +27,10 @@ function beginTransition(session) {
   session.phase = 'transition';
   session.timer = 0;
   session.revealed = false;
-  session.analysis = describeProfile(session.profile);
+  // 下一關可以自己宣告一句話取代側寫結果。第 10 關用它說
+  // 「已停止分析」——而且那句話是真的。
+  const next = session.levels[session.index + 1];
+  session.analysis = next?.announce ?? describeProfile(session.profile);
 }
 
 function reveal(session) {
@@ -70,6 +74,8 @@ export function updateSession(session, input, dt) {
       session.totalDeaths += session.world.deaths;
       session.phase = 'finished';
       session.timer = 0;
+      // 傳給朋友的東西不是死亡數，是這一份
+      session.report = buildReport(session.profile);
     } else {
       beginTransition(session);
     }

@@ -152,14 +152,60 @@ export function createRenderer(canvas) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.font = '8px Consolas, monospace';
     ctx.textAlign = 'left';
-    ctx.fillStyle = C.ui;
-    ctx.fillText(`LEVEL ${world.level.id}`, 8, 12);
+    ctx.fillStyle = world.flipped ? C.uiHot : C.ui;
+    if (world.flipped) {
+      // 左右反轉時關卡編號也左右反轉。這是反轉唯一的持續性告示——
+      // 觸發那一瞬間有聲音有震動，之後就只剩這個。有在看的人看得到。
+      ctx.save();
+      ctx.translate(8 + ctx.measureText(`LEVEL ${world.level.id}`).width, 0);
+      ctx.scale(-1, 1);
+      ctx.fillText(`LEVEL ${world.level.id}`, 0, 12);
+      ctx.restore();
+    } else {
+      ctx.fillText(`LEVEL ${world.level.id}`, 8, 12);
+    }
     ctx.textAlign = 'right';
     ctx.fillStyle = world.deaths > 0 ? C.uiHot : C.ui;
     ctx.fillText(`DEATHS ${world.deaths}`, VIEW_W - 8, 12);
     ctx.textAlign = 'left';
 
+    if (world.level.showProfile) drawProfilePanel(world);
     if (world.phase === 'won') drawWinOverlay(world);
+  }
+
+  // 第 9 關：把它算到的東西即時攤在你眼前。它不解釋任何一個數字。
+  function drawProfilePanel(world) {
+    const p = world.profile;
+    const rows = [
+      ['LAND', p.lastLandTile],
+      ['APEX', p.lastApex],
+      ['SPEED', p.lastSpeed],
+      ['DELAY', p.lastRestartDelay],
+      ['LEAD', p.lastJumpLead],
+      ['HESIT', p.lastHesitation],
+    ];
+
+    const x = VIEW_W - 66, y = 22, w = 58, h = rows.length * 9 + 12;
+    ctx.fillStyle = 'rgba(5,6,10,0.72)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = C.scan;
+    ctx.fillRect(x, y, w, 1);
+
+    ctx.font = '7px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.scan;
+    ctx.fillText('PROFILE', x + 4, y + 9);
+
+    rows.forEach(([label, value], i) => {
+      const ty = y + 20 + i * 9;
+      ctx.fillStyle = C.ui;
+      ctx.fillText(label, x + 4, ty);
+      ctx.textAlign = 'right';
+      // 還沒有樣本就顯示破折號，不要編一個數字出來
+      ctx.fillStyle = value === null || value === undefined ? C.ui : '#d8dae6';
+      ctx.fillText(value === null || value === undefined ? '--' : String(value), x + w - 4, ty);
+      ctx.textAlign = 'left';
+    });
   }
 
   function drawWinOverlay(world) {
@@ -230,21 +276,41 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
   }
 
+  // 結算：整場的分析報告。這才是要傳給朋友的東西——
+  // 不是死亡數，是它對你的評語。所以一行一行打出來，讓人讀得完。
   function drawFinished(session) {
+    const t = session.timer;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = C.void;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    const cx = VIEW_W / 2, cy = VIEW_H / 2;
+
     ctx.textAlign = 'center';
-    ctx.font = 'bold 22px Consolas, monospace';
+    ctx.font = 'bold 18px Consolas, monospace';
     ctx.fillStyle = C.scan;
-    ctx.fillText('ALL CLEAR', cx, cy - 8);
+    ctx.fillText('ANALYSIS COMPLETE', VIEW_W / 2, 34);
+
     ctx.font = '8px Consolas, monospace';
-    ctx.fillStyle = '#d8dae6';
-    ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}`, cx, cy + 14);
+    ctx.fillStyle = C.uiHot;
+    ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}`, VIEW_W / 2, 48);
+
+    // 一行一行浮出來，一行 0.45 秒
+    ctx.textAlign = 'left';
     ctx.font = '11px "Microsoft JhengHei", sans-serif';
-    ctx.fillStyle = C.ui;
-    ctx.fillText(session.analysis || '', cx, cy + 36);
+    const lines = session.report ?? [];
+    lines.forEach((line, i) => {
+      const start = 0.6 + i * 0.45;
+      if (t < start) return;
+      ctx.fillStyle = i === lines.length - 1 ? C.scan : '#d8dae6';
+      ctx.fillText(typed(line, t, start, 0.4), 26, 74 + i * 17);
+    });
+
+    const done = 0.6 + lines.length * 0.45 + 0.6;
+    if (t > done && Math.floor(t * 1.5) % 2 === 0) {
+      ctx.textAlign = 'center';
+      ctx.font = '8px Consolas, monospace';
+      ctx.fillStyle = C.ui;
+      ctx.fillText('PRESS  C  TO COPY', VIEW_W / 2, VIEW_H - 12);
+    }
     ctx.textAlign = 'left';
   }
 
