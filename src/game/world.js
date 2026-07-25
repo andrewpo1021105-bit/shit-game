@@ -63,6 +63,8 @@ function applyBuild(world) {
   world.fakeKind = null;
   world.fakeTimer = 0;
   world.fakeDuration = 0;
+  // 假當機也是命內狀態，重生歸零
+  world.glitch = null;
   world.phase = 'play';
   world.phaseTimer = 0;
 }
@@ -194,6 +196,14 @@ function recordLanding(world, prevFeet) {
 export function updateWorld(world, input, dt) {
   world.events = [];
 
+  // 假當機的凍結：畫面與物理一起停住。停的期間陷阱不跑、玩家不動，
+  // 所以它嚇人但不吃手速。label 的 timer 是 0，不會走進這裡。
+  if (world.glitch && world.glitch.timer > 0) {
+    world.glitch.timer -= dt;
+    if (world.glitch.timer <= 0) world.glitch = null;
+    return;
+  }
+
   if (world.phase === 'dying') {
     world.phaseTimer -= dt;
     if (world.phaseTimer <= 0) {
@@ -307,6 +317,7 @@ export function updateWorld(world, input, dt) {
     // 假的也要有聲音與震動，否則它就不像真的了
     if (a.t === 'fakeDeath') world.events.push('death');
     if (a.t === 'fakeWin') world.events.push('win');
+    if (a.t === 'glitch') world.events.push('glitch');
   }
 
   if (world.doorLock > 0) world.doorLock = Math.max(0, world.doorLock - dt);

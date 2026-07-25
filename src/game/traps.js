@@ -223,6 +223,19 @@ export function applyAction(world, action) {
       world.player.vy = 0;
       break;
     }
+    case 'glitch':
+      // 假當機。freeze 與 crash 連物理一起凍住——只凍畫面、物理照跑
+      // 會變成「你看到的是 0.8 秒前的自己」，那是純考手指，而且踩到
+      // 「跟時間賽跑」的紅線。凍結解除時場上已經不一樣了，一樣嚇人。
+      //
+      // label 沒有 s，所以 timer 是 0，這條命之內不會自己恢復——
+      // 關卡編號亂掉之後就一路錯下去，玩家會持續懷疑自己漏了什麼。
+      world.glitch = {
+        kind: action.kind,
+        text: action.text ?? null,
+        timer: action.s ?? 0,
+      };
+      break;
     case 'noteRoute':
       // 玩家此刻在分界線上方還是下方，決定他走的是哪條路
       noteRoute(

@@ -423,3 +423,44 @@ test('重生會清掉演出狀態', () => {
   assert.equal(world.phase, 'play');
   assert.equal(world.fakeKind, null);
 });
+
+// 撞到觸發線大約在 0.6833 秒（跟假死／假通關測試同一條觸發線），
+// s=0.8 的凍結會在觸發後 96 個物理格解除，也就是全域時間 ≈1.4833 秒。
+// 原本 brief 的檢查點是 runTo(world, 1.5)——比解凍時刻晚了約 0.0167 秒，
+// 到這個檢查點時凍結其實已經解除，斷言會直接踩到 null。改成 1.0，
+// 離觸發線還有 0.3167 秒緩衝（保證已經觸發），離解凍還有 0.4833 秒緩衝。
+test('freeze 期間物理完全不前進', () => {
+  const world = createWorld(actionLevel(96, { t: 'glitch', kind: 'freeze', s: 0.8 }));
+  runTo(world, 1.0);
+  assert.equal(world.glitch.kind, 'freeze');
+  const x = world.player.x;
+  runTo(world, 0.3);
+  assert.equal(world.player.x, x, '凍住了就不能再往前滑——這是它不吃手速的保證');
+});
+
+// 同樣把檢查點從 1.5 移到 1.0，再多等 0.7 秒（累計 1.7 秒），
+// 離解凍時刻 1.4833 秒還有約 0.2167 秒緩衝，確保這一刻凍結真的已經解除。
+test('freeze 時間到就解凍', () => {
+  const world = createWorld(actionLevel(96, { t: 'glitch', kind: 'freeze', s: 0.8 }));
+  runTo(world, 1.0);
+  runTo(world, 0.7);
+  assert.equal(world.glitch, null);
+  const x = world.player.x;
+  runTo(world, 0.2);
+  assert.ok(world.player.x > x, '解凍後要能繼續走');
+});
+
+test('label 在這條命之內不會自己消失', () => {
+  const world = createWorld(actionLevel(96, { t: 'glitch', kind: 'label', text: 'LEVEL 13' }));
+  runTo(world, 1.5);
+  assert.equal(world.glitch.text, 'LEVEL 13');
+  runTo(world, 5.0);
+  assert.equal(world.glitch.text, 'LEVEL 13', '沒有 s 就不會過期');
+});
+
+test('重生清掉 glitch', () => {
+  const world = createWorld(actionLevel(96, { t: 'glitch', kind: 'label', text: 'LEVEL 13' }));
+  runTo(world, 1.5);
+  resetLevel(world);
+  assert.equal(world.glitch, null);
+});

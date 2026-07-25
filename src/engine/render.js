@@ -176,16 +176,20 @@ export function createRenderer(canvas) {
     ctx.font = '8px Consolas, monospace';
     ctx.textAlign = 'left';
     ctx.fillStyle = world.flipped ? C.uiHot : C.ui;
+    // HUD 也會說謊。label glitch 一旦發動，關卡編號就一路錯下去。
+    const levelText = world.glitch?.kind === 'label' && world.glitch.text
+      ? world.glitch.text
+      : `LEVEL ${world.level.id}`;
     if (world.flipped) {
       // 左右反轉時關卡編號也左右反轉。這是反轉唯一的持續性告示——
       // 觸發那一瞬間有聲音有震動，之後就只剩這個。有在看的人看得到。
       ctx.save();
-      ctx.translate(8 + ctx.measureText(`LEVEL ${world.level.id}`).width, 0);
+      ctx.translate(8 + ctx.measureText(levelText).width, 0);
       ctx.scale(-1, 1);
-      ctx.fillText(`LEVEL ${world.level.id}`, 0, 12);
+      ctx.fillText(levelText, 0, 12);
       ctx.restore();
     } else {
-      ctx.fillText(`LEVEL ${world.level.id}`, 8, 12);
+      ctx.fillText(levelText, 8, 12);
     }
     ctx.textAlign = 'right';
     ctx.fillStyle = world.deaths > 0 ? C.uiHot : C.ui;
@@ -194,6 +198,7 @@ export function createRenderer(canvas) {
 
     if (world.level.showProfile) drawProfilePanel(world);
     if (winLike) drawWinOverlay(world, winT);
+    if (world.glitch?.kind === 'crash') drawCrash();
   }
 
   // 第 9 關：把它算到的東西即時攤在你眼前。它不解釋任何一個數字。
@@ -250,6 +255,28 @@ export function createRenderer(canvas) {
       ctx.fillText(`DEATHS  ${world.deaths}`, cx, cy + 18);
     }
     ctx.textAlign = 'left';
+  }
+
+  // 假當機。它蓋掉整個畫面，看起來就是遊戲真的爆了。
+  // 物理同時是凍住的，所以你不會在看不見的時候被偷走進度。
+  function drawCrash() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = C.void;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.textAlign = 'left';
+    ctx.font = '8px Consolas, monospace';
+    const lines = [
+      'Uncaught TypeError: Cannot read properties of null',
+      '    at updateWorld (world.js:214:19)',
+      '    at step (main.js:32:3)',
+      '    at frame (loop.js:18:7)',
+      '',
+      'The game has stopped responding.',
+    ];
+    lines.forEach((line, i) => {
+      ctx.fillStyle = i >= 4 ? C.ui : C.uiHot;
+      ctx.fillText(line, 12, 40 + i * 12);
+    });
   }
 
   // 轉場：黑幕由上往下蓋滿 → 分析你 → 由上往下掀開露出下一關
