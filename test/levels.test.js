@@ -60,11 +60,12 @@ function jumpDistance(rise) {
 }
 
 // 掃出一列裡所有連續的「不能踩」片段，回傳 [起點, 長度]
+// 假地板與假刺站不上去（它們是空氣），所以跟洞一樣算不能踩
 function blockedRuns(row) {
   const runs = [];
   let start = -1;
   for (let x = 0; x < row.length; x++) {
-    const bad = row[x] === '.' || row[x] === '^';
+    const bad = row[x] === '.' || row[x] === '^' || row[x] === ',' || row[x] === '/';
     if (bad && start < 0) start = x;
     if (!bad && start >= 0) { runs.push([start, x - start]); start = -1; }
   }
@@ -123,7 +124,8 @@ test('adapt 在任意側寫輸入下產生的地形都可通關', () => {
       assert.equal(isSolid(tiles, lv.door[0], lv.door[1]), false, `${where}：門卡在牆裡`);
       assert.equal(isSolid(tiles, lv.door[0], lv.door[1] + 2), true, `${where}：門下面沒有地板`);
 
-      const floor = tiles[lv.spawn[1] + 1];
+      // 量洞寬要用物理真相，不是畫面：假地板跟假刺都是空氣，跟洞一樣跨不過去
+      const floor = tiles[lv.spawn[1] + 1].replace(/[,/]/g, '.');
 
       const gap = longestRun(floor, '.');
       assert.ok(gap <= MAX_JUMPABLE_GAP, `${where}：出現 ${gap} 格寬的洞，跳不過去`);

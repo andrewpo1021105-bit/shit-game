@@ -6,6 +6,16 @@ export const AIR = '.';
 export const SPIKE = '^';
 export const SPIKE_DOWN = 'v';
 
+// 假的：畫得跟真的一模一樣，但物理上不存在。
+// ',' 看起來是實心地板，踩上去直接穿過；
+// '/' 看起來是刺，碰到卻什麼事都沒有——它的用途不是嚇你，
+// 是逼你為了繞過它而走進真的陷阱。
+export const FAKE_FLOOR = ',';
+export const FAKE_SPIKE = '/';
+
+// 物理上不存在的字元。看得見不代表擋得住。
+const PASSABLE = new Set([AIR, FAKE_FLOOR, FAKE_SPIKE]);
+
 export function tileAt(map, tx, ty) {
   if (ty < 0) return '#';
   if (ty >= map.length) return AIR;   // 地圖下緣是深淵
@@ -15,7 +25,7 @@ export function tileAt(map, tx, ty) {
 }
 
 export function isSolid(map, tx, ty) {
-  return tileAt(map, tx, ty) !== AIR;
+  return !PASSABLE.has(tileAt(map, tx, ty));
 }
 
 export function isDeadly(map, tx, ty) {

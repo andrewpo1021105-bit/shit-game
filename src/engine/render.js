@@ -16,6 +16,10 @@ const C = {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+// 畫面上「看起來是實心」的字元。假地板必須跟真地板共用同一組畫法，
+// 連頂端亮邊的判斷都要一致——看得出來的假地板就不是假地板。
+const looksSolid = (ch) => ch === '#' || ch === ',';
+
 // 打字機：依時間推進顯示到第幾個字
 function typed(text, t, start, dur) {
   const n = Math.floor(text.length * clamp01((t - start) / dur));
@@ -39,7 +43,7 @@ export function createRenderer(canvas) {
     const px = x * TILE, py = y * TILE;
     ctx.fillStyle = C.tile;
     ctx.fillRect(px, py, TILE, TILE);
-    if (y === 0 || map[y - 1][x] !== '#') {
+    if (y === 0 || !looksSolid(map[y - 1][x])) {
       ctx.fillStyle = C.tileTop;
       ctx.fillRect(px, py, TILE, 3);
     }
@@ -139,9 +143,11 @@ export function createRenderer(canvas) {
     const map = world.map;
     for (let y = 0; y < map.length; y++)
       for (let x = 0; x < map[y].length; x++) {
-        if (map[y][x] === '#') drawTile(map, x, y);
-        else if (map[y][x] === '^') drawSpike(x, y, 1);
-        else if (map[y][x] === 'v') drawSpike(x, y, -1);
+        const ch = map[y][x];
+        // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
+        if (ch === '#' || ch === ',') drawTile(map, x, y);
+        else if (ch === '^' || ch === '/') drawSpike(x, y, 1);
+        else if (ch === 'v') drawSpike(x, y, -1);
       }
 
     // 過關瞬間門會亮一下再收回去

@@ -99,3 +99,22 @@ test('腳下的地板被挖掉後 onGround 立刻變假', () => {
   holed[4] = '#######.##';
   assert.equal(onGround(holed, { x: 114, y: 50, w: 10, h: 14 }), false);
 });
+
+test('假地板畫得跟實心地板一樣，但物理上不存在', () => {
+  const map = ['#,#'];
+  assert.equal(isSolid(map, 0, 0), true);
+  assert.equal(isSolid(map, 1, 0), false, '假地板不能是實心的');
+  assert.equal(isDeadly(map, 1, 0), false, '假地板不會殺人');
+});
+
+test('假刺畫得跟刺一樣，但碰到不會死，也擋不住人', () => {
+  const map = ['#/#'];
+  assert.equal(isDeadly(map, 1, 0), false, '假刺不會殺人');
+  assert.equal(isSolid(map, 1, 0), false, '假刺是空氣，站不上去');
+});
+
+test('碰撞箱穿得過假地板，也不會被假刺殺死', () => {
+  const box = { x: 16, y: 0, w: 10, h: 14 };
+  assert.equal(collides([',,,'], box), false, '不該卡在假地板裡');
+  assert.equal(touchesDeadly(['///'], box), false, '不該被假刺殺死');
+});
