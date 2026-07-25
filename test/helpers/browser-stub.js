@@ -13,7 +13,7 @@ export function stubBrowser(frameBudget) {
   });
 
   function canvasStub() {
-    return { width: 0, height: 0, style: {}, getContext: () => ctx };
+    return { width: 0, height: 0, style: {}, getContext: () => ctx, remove: () => {} };
   }
 
   let frames = 0;

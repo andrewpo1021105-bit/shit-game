@@ -8,10 +8,30 @@
   html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
   body { display: flex; align-items: center; justify-content: center; }
   canvas { image-rendering: pixelated; display: block; }
+  /* 這一頁用 ES module，從 file:// 雙擊開會被 CORS 擋掉，
+     而症狀是整個畫面全黑、console 以外什麼線索都沒有。
+     所以先把說明畫在那裡，遊戲真的起來之後 main.js 再把它移掉——
+     沒起來的話它就留在畫面上，至少壞得看得懂。 */
+  #boot {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    font: 14px/1.8 Consolas, "Microsoft JhengHei", monospace;
+    color: #e04b4b; text-align: center;
+  }
+  #boot code { color: #8fd6a0; }
 </style>
 </head>
 <body>
 <canvas id="game" width="480" height="270"></canvas>
+<div id="boot">
+  <div>遊戲沒有啟動。</div>
+  <div style="color:#6f779b">
+    這一頁不能直接雙擊開，它需要一個伺服器：<code>npm run dev</code><br>
+    想雙擊就玩、或要傳給朋友，請用 <code>npm run build</code> 產出的
+    <code>dist/搞人遊戲.html</code>。
+  </div>
+</div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

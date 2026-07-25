@@ -7,6 +7,9 @@ import { initSprites } from './engine/sprites.js';
 import { createRenderer } from './engine/render.js';
 import { createAudio } from './engine/audio.js';
 
+// 走到這一行就代表模組載得起來。把「遊戲沒有啟動」那塊說明收掉。
+document.getElementById('boot')?.remove?.();
+
 const canvas = document.getElementById('game');
 canvas.width = VIEW_W;
 canvas.height = VIEW_H;

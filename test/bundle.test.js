@@ -61,6 +61,25 @@ test('打包產物真的跑得起來，能連跑數百幀不炸', async () => {
     `打包後只跑了 ${framesRun()} 幀，主迴圈沒有真的動起來`);
 });
 
+// index.html 用 ES module，從 file:// 雙擊開會被 CORS 擋掉，
+// 而症狀是整個畫面全黑、console 以外一點線索都沒有——最糟的壞法。
+// 所以說明先畫在頁面上，main.js 起來之後才把它移掉。
+test('index.html 不會無聲地全黑，沒啟動時看得到說明', async () => {
+  const html = await readFile(join(ROOT, 'index.html'), 'utf8');
+  assert.ok(html.includes('id="boot"'), 'index.html 少了啟動失敗時的說明');
+  assert.ok(html.includes('dist/搞人遊戲.html'),
+    '說明必須指出「要雙擊就玩請用單檔版」，否則等於沒說');
+
+  const main = await readFile(join(ROOT, 'src', 'main.js'), 'utf8');
+  assert.ok(/getElementById\('boot'\)/.test(main),
+    'main.js 沒有把說明收掉，遊戲起來之後那塊會擋在畫面上');
+});
+
+test('單檔版不需要那段說明——它本來就雙擊得開', async () => {
+  const html = await readFile(OUT, 'utf8');
+  assert.ok(!html.includes('id="boot"'));
+});
+
 test('同名的關卡輔助函式沒有互相蓋掉', async () => {
   const script = extractScript(await readFile(OUT, 'utf8'));
   // 三支關卡檔各有一個 digGap，打包後三個都要還在，
