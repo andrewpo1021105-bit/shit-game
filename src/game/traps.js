@@ -64,6 +64,22 @@ function paint(world, x, y, w, h, ch) {
   }
 }
 
+// 跟 paint 不同：它不是塗掉一整塊，而是照對照表逐格換。
+// 沒列在對照表裡的字元一律不動——所以空氣永遠是空氣，
+// 不會因為「把這塊變成實心」而把玩家要走的洞填掉。
+function repaint(world, x, y, w, h, mapping) {
+  for (let ty = y; ty < y + h; ty++) {
+    if (ty < 0 || ty >= world.map.length) continue;
+    const row = world.map[ty].split('');
+    for (let tx = x; tx < x + w; tx++) {
+      if (tx < 0 || tx >= row.length) continue;
+      const to = mapping[row[tx]];
+      if (to) row[tx] = to;
+    }
+    world.map[ty] = row.join('');
+  }
+}
+
 export function applyAction(world, action) {
   switch (action.t) {
     case 'removeTiles':
@@ -75,6 +91,14 @@ export function applyAction(world, action) {
     case 'spawnSpikes':
       // 沒有預告，就是突然長出來。看得見是唯一的公平性保證。
       paint(world, action.x, action.y, action.w, action.h, action.down ? 'v' : '^');
+      break;
+    case 'revealFake':
+      // 你第一次穿過去的地板，第二次是實的。同一塊地磚，兩種命運。
+      repaint(world, action.x, action.y, action.w, action.h, { ',': '#', '/': '^' });
+      break;
+    case 'fakeTiles':
+      // 反過來：你剛剛才踩過的地板，現在只是畫上去的。
+      repaint(world, action.x, action.y, action.w, action.h, { '#': ',', '^': '/' });
       break;
     case 'dropBlock':
       // 從天花板砸下來的東西。砸到人會死，落地後就地變成實心地形。

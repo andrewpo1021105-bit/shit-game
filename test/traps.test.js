@@ -166,3 +166,21 @@ test('門往上跳走時，它原本站的整塊地板都會塌', () => {
   assert.equal(world.map[14][10], '.');
   assert.equal(world.map[14][11], '.');
 });
+
+test('revealFake 把假的變成真的，而且不碰空氣', () => {
+  const world = { map: ['.,/#'] };
+  applyAction(world, { t: 'revealFake', x: 0, y: 0, w: 4, h: 1 });
+  assert.equal(world.map[0], '.#^#', '假地板要變實心、假刺要變真刺、空氣不動');
+});
+
+test('fakeTiles 把真的變成假的，而且不碰空氣與倒刺', () => {
+  const world = { map: ['.#^v'] };
+  applyAction(world, { t: 'fakeTiles', x: 0, y: 0, w: 4, h: 1 });
+  assert.equal(world.map[0], '.,/v', '倒刺不在對照表裡，維持原樣');
+});
+
+test('revealFake 超出地圖範圍不會爆炸', () => {
+  const world = { map: [',,'] };
+  applyAction(world, { t: 'revealFake', x: -2, y: -2, w: 9, h: 9 });
+  assert.equal(world.map[0], '##');
+});
