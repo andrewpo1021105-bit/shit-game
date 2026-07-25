@@ -132,6 +132,29 @@ export function applyAction(world, action) {
       }
       break;
     }
+    case 'flipControls':
+      // 左右對調。這是命內翻臉，重生就歸零（applyBuild 會清掉）。
+      // 公平性靠「觸發那一瞬間看得見」：world.js 會推一個 flip 事件，
+      // 而且反轉期間 HUD 的關卡編號是鏡像的。
+      world.flipped = action.on ?? true;
+      break;
+    case 'setTune':
+      // 物理突變。只覆蓋指定的欄位，其餘維持這條命目前的值。
+      Object.assign(world.tune, action.tune);
+      break;
+    case 'swapDoor': {
+      // 真門跟假門互換身分。配 touchDoor 觸發器時特別惡毒：
+      // updateWorld 的順序是「跑觸發器 → 檢查假門 → 檢查真門」，
+      // 所以你正碰著的那扇會在過關判定之前變成假的，當場死。
+      const d = world.decoys[action.decoy ?? 0];
+      if (!d) break;
+      const { x, y } = world.door;
+      world.door.x = d.x;
+      world.door.y = d.y;
+      d.x = x;
+      d.y = y;
+      break;
+    }
     case 'noteRoute':
       // 玩家此刻在分界線上方還是下方，決定他走的是哪條路
       noteRoute(

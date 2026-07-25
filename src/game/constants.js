@@ -23,3 +23,16 @@ export const RESPAWN_DELAY = 0.30;
 // 落地紀錄的門檻：離地超過這個秒數才算一次真正的跳躍落點，
 // 免得出生那一幀被當成落地而污染側寫
 export const AIRBORNE_MIN = 0.12;
+
+// 手感參數打包成一個可以整包換掉的物件。關卡可以用 setTune 陷阱在命內
+// 突然改掉重力，也可以在 adapt() 裡依側寫換掉整包——這是「物理會變」
+// 這件事唯一的入口，player.js 不再直接讀常數。
+export const DEFAULT_TUNE = Object.freeze({
+  maxSpeed: MAX_SPEED,
+  accel: ACCEL,
+  friction: FRICTION,
+  jumpSpeed: JUMP_SPEED,
+  gravityUp: GRAVITY_UP,
+  gravityDown: GRAVITY_DOWN,
+  jumpCut: JUMP_CUT,
+});

@@ -1,29 +1,37 @@
 import { createPlayer, updatePlayer } from './player.js';
 import { createTrapState, checkTriggers, applyAction } from './traps.js';
-import { createProfile, noteLanding, noteAttempt, noteApex, noteSpeed, noteRestartDelay } from './profile.js';
-import { touchesDeadly, isSolid, collides } from './physics.js';
-import { TILE, VIEW_W, VIEW_H, RESPAWN_DELAY, AIRBORNE_MIN } from './constants.js';
+import {
+  createProfile, noteLanding, noteAttempt, noteApex, noteSpeed,
+  noteRestartDelay, noteJumpLead, noteHesitation,
+} from './profile.js';
+import { touchesDeadly, isSolid, isDeadly, collides } from './physics.js';
+import { TILE, VIEW_W, VIEW_H, RESPAWN_DELAY, AIRBORNE_MIN, DEFAULT_TUNE } from './constants.js';
 
-const IDLE_SPEED = 6;   // 低於這個速度就算「站著不動」
+const IDLE_SPEED = 6;      // 低於這個速度就算「站著不動」
+const HESITATE_IDLE = 0.5; // 動過之後又停這麼久，算猶豫
+const LEAD_SCAN = 8;       // 起跳提前量往前掃幾格就放棄
 
-// 關卡可以提供 adapt(tiles, profile)，依側寫重建這一條命的地形。
+// 關卡可以提供 adapt(tiles, profile, ctx)，依側寫重建這一條命的地形。
 // 只在這裡（建立世界）與 resetLevel（重生）呼叫——這就是
 // 「絕不在玩家人在空中時改動任何東西」這條鐵則的實作保證。
-function buildMap(level, profile) {
-  const base = { traps: level.traps, decoys: level.decoys };
+// ctx.deaths 是「這一關」死了幾次；profile.attempts 是跨關累加的，
+// 拿來當難度依據會被前面的關卡污染，所以另外傳。
+function buildMap(level, profile, ctx) {
+  const base = { traps: level.traps, decoys: level.decoys, tune: null };
   if (!level.adapt) return { ...base, tiles: level.tiles.slice() };
-  const r = level.adapt(level.tiles, profile);
-  // adapt 也可以換掉這條命的陷阱與假門，回傳新的陣列而不是改寫關卡本身，
+  const r = level.adapt(level.tiles, profile, ctx);
+  // adapt 也可以換掉這條命的陷阱、假門與手感，回傳新的物件而不是改寫關卡本身，
   // 關卡資料才能一直保持乾淨
   return {
     tiles: r.tiles.slice(),
     traps: r.traps ?? level.traps,
     decoys: r.decoys ?? level.decoys,
+    tune: r.tune ?? null,
   };
 }
 
 function applyBuild(world) {
-  const built = buildMap(world.level, world.profile);
+  const built = buildMap(world.level, world.profile, { deaths: world.deaths ?? 0 });
   world.map = built.tiles;
   world.traps = built.traps ?? [];
   // 假門：長得跟真門一模一樣，碰到就死
@@ -41,6 +49,14 @@ function applyBuild(world) {
   world.apexY = null;      // 這一跳到過的最高點
   world.firstInputAt = null;
   world.hazards = [];
+  // 手感是每條命一份的可變副本。重生一定復原，所以命內的物理突變
+  // 跟命內的陷阱一樣，不會洩漏到下一條命。
+  world.tune = { ...DEFAULT_TUNE, ...(built.tune ?? {}) };
+  // 左右反轉也是命內狀態，重生歸零
+  world.flipped = false;
+  world.moved = false;      // 這條命有沒有真的開始移動過
+  world.hesitated = false;  // 開始移動之後有沒有倒退或停下來想
+  world.settled = false;    // 這條命的側寫結算過了沒
   world.phase = 'play';
   world.phaseTimer = 0;
 }
@@ -125,10 +141,30 @@ function touchingDecoy(world) {
   return world.decoys.some((d) => overlapsDoorAt(world.player, d.x, d.y));
 }
 
+// 起跳當下，人到前方最近一個站不住的格子（洞或刺）還有多遠。
+// 前方一路平坦就回 null——平地上隨便跳一下不代表任何習慣。
+function jumpLeadPx(map, x, w, dir, row) {
+  const edgeCol = Math.floor((dir > 0 ? x + w - 1 : x) / TILE);
+  for (let d = 1; d <= LEAD_SCAN; d++) {
+    const tx = edgeCol + d * dir;
+    if (isSolid(map, tx, row) && !isDeadly(map, tx, row)) continue;
+    return dir > 0 ? tx * TILE - (x + w) : x - (tx + 1) * TILE;
+  }
+  return null;
+}
+
+// 一條命的結算。死亡與過關都要跑，而且只跑一次——
+// 只從死亡中學習會漏掉「一次就過」的人。
+function settleLife(world) {
+  if (world.settled) return;
+  world.settled = true;
+  if (world.topSpeed > 0) noteSpeed(world.profile, world.topSpeed);
+  noteHesitation(world.profile, world.hesitated);
+}
+
 function kill(world) {
   if (world.phase !== 'play') return;
-  // 死前把這條命跑到的最高速度存起來，關卡才知道你是衝的還是走的
-  if (world.topSpeed > 0) noteSpeed(world.profile, world.topSpeed);
+  settleLife(world);
   world.phase = 'dying';
   world.phaseTimer = RESPAWN_DELAY;
   world.deaths += 1;
@@ -168,15 +204,30 @@ export function updateWorld(world, input, dt) {
   const prevY = p.y + p.h / 2;
   const prevFeet = p.y + p.h;
   const wasGrounded = p.grounded;
+  // 起跳提前量要用「起跳前」的位置算，updatePlayer 跑完人已經離地了
+  const prevLeftX = p.x;
+  const prevGroundRow = Math.floor(prevFeet / TILE);
+  const prevDir = p.vx > IDLE_SPEED ? 1 : (p.vx < -IDLE_SPEED ? -1 : p.facing);
 
   world.time += dt;
-  updatePlayer(p, world.map, input, dt);
+  // 左右反轉。玩家按的還是同一顆鍵，只是這條命裡它代表反方向。
+  const eff = world.flipped
+    ? { left: input.right, right: input.left, jump: input.jump }
+    : input;
+  updatePlayer(p, world.map, eff, dt, world.tune);
 
   world.airTime = p.grounded ? 0 : world.airTime + dt;
   recordLanding(world, prevFeet);
 
   // 站著不動多久了（第 6 關要用）
   world.idle = (p.grounded && Math.abs(p.vx) < IDLE_SPEED) ? world.idle + dt : 0;
+
+  // 猶豫（第 9 關展示）：先確定他真的動起來了，之後再倒退或停下來想才算數。
+  // 否則出生後還沒按鍵的那段靜止會被誤判成猶豫。
+  if (Math.abs(p.vx) > IDLE_SPEED) world.moved = true;
+  if (world.moved && (p.vx < -IDLE_SPEED || world.idle >= HESITATE_IDLE)) {
+    world.hesitated = true;
+  }
 
   // 這條命跑到的最高速度（第 4 關要用）
   world.topSpeed = Math.max(world.topSpeed, Math.abs(p.vx));
@@ -191,6 +242,11 @@ export function updateWorld(world, input, dt) {
     world.jumps += 1;
     world.takeoffY = p.y;
     world.apexY = p.y;
+    // 這一跳是在離障礙多遠的地方起跳的（第 8 關要用）
+    noteJumpLead(
+      world.profile,
+      jumpLeadPx(world.map, prevLeftX, p.w, prevDir, prevGroundRow),
+    );
     world.events.push('jump');
   }
 
@@ -222,6 +278,8 @@ export function updateWorld(world, input, dt) {
     // 刺彈出來要有聲音與震動——玩家不會被告知原因，但一定要察覺「剛剛有東西冒出來」
     if (a.t === 'spawnSpikes') world.events.push('spike');
     if (a.t === 'dropBlock' || a.t === 'sweepSpike') world.events.push('spike');
+    // 左右反轉沒有實體，看不見也聽不見就等於作弊——這一聲是它的公平性保證
+    if (a.t === 'flipControls') world.events.push('flip');
   }
 
   updateHazards(world, dt);
@@ -238,7 +296,7 @@ export function updateWorld(world, input, dt) {
 
   if (touchingDoor(world) && world.phase === 'play') {
     // 成功走完也是一筆樣本，不能只從死亡中學習
-    if (world.topSpeed > 0) noteSpeed(world.profile, world.topSpeed);
+    settleLife(world);
     world.phase = 'won';
     world.phaseTimer = 0;      // 通關動畫從 0 開始累加
     world.events.push('win');

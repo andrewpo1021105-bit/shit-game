@@ -33,6 +33,12 @@ export function createProfile() {
     // 上下兩條路走哪條（第 7 關）
     lastRoute: null,
     routes: [],
+    // 起跳提前量，單位像素（第 8 關）
+    lastJumpLead: null,
+    jumpLeads: [],
+    // 這條命有沒有猶豫過，0 或 1（第 9 關展示）
+    lastHesitation: null,
+    hesitations: [],
   };
 }
 
@@ -69,8 +75,29 @@ export function noteRoute(profile, route) {
   push(profile.routes, route);
 }
 
+// 起跳當下，人到前方那個坑（或刺）還有多遠。看不到障礙就不取樣——
+// 平地上隨便跳一下不代表任何習慣。
+export function noteJumpLead(profile, px) {
+  if (px === null || px === undefined) return;
+  const v = Math.max(0, Math.round(px));
+  profile.lastJumpLead = v;
+  push(profile.jumpLeads, v);
+}
+
+// 一條命結算一次：這條命有沒有倒退或停下來想過
+export function noteHesitation(profile, hesitated) {
+  const v = hesitated ? 1 : 0;
+  profile.lastHesitation = v;
+  push(profile.hesitations, v);
+}
+
 export function noteAttempt(profile) {
   profile.attempts += 1;
+}
+
+// 一串 0/1 裡有幾個 1
+export function countHesitations(profile) {
+  return profile.hesitations.reduce((a, b) => a + b, 0);
 }
 
 // 轉場時當面唸給玩家聽的那一行。必須是可重現的事實陳述，不能是猜測。
