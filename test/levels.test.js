@@ -240,7 +240,11 @@ function doorGagSignature(lv) {
   const gag = traps.find((t) => t.when.t === 'touchDoor')
     ?? traps.find((t) => t.when.t === 'standOn' && Math.abs(t.when.x - lv.door[0]) <= 2);
   if (!gag) return null;
-  return `${gag.when.t}:${gag.do.map((a) => a.t).sort().join('+')}`;
+  // 連參數一起比較，不能只看動作種類：玩家記住的是「門往上跳」還是
+  // 「門往右滑還留洞」這種具體招式，不是抽象的 action type。
+  // 兩關用同一個 type 但參數天差地遠（例如第 1 關滑門留洞、第 4 關門跳三格）
+  // 對玩家來說是兩招不同的騙術，不該被算成同一招。
+  return `${gag.when.t}:${gag.do.map((a) => JSON.stringify(a)).sort().join('+')}`;
 }
 
 test('門前的梗不能每關都一樣', () => {
@@ -423,13 +427,16 @@ test('沒有陷阱會挖掉玩家正踩著的那一格', () => {
 
 test('第 7 關永遠只封一條路，另一條必定是通的', () => {
   const lv = LEVELS.find((l) => l.id === 7);
+  // 分岔點在 x<8：樓梯在 x=6,7,8（row13,12,11），平台在 row10 的 x=10~20。
+  // 封下路是在樓梯口右邊（x=9）補牆，封上路是把樓梯拆掉，兩者都不動 row10 的平台。
   const low = lv.adapt(lv.tiles, { ...createProfile(), lastRoute: 'low' });
-  assert.equal(isSolid(low.tiles, 16, 13), true, '下路應該被牆塞死');
+  assert.equal(isSolid(low.tiles, 9, 13), true, '下路應該被牆塞死');
+  assert.equal(isSolid(low.tiles, 8, 11), true, '封下路時樓梯應該還在');
   assert.equal(isDeadly(low.tiles, 14, 10), false, '上路必須還能走');
 
   const high = lv.adapt(lv.tiles, { ...createProfile(), lastRoute: 'high' });
-  assert.equal(isDeadly(high.tiles, 14, 10), true, '上路應該鋪上刺');
-  assert.equal(isSolid(high.tiles, 16, 13), false, '下路必須還能走');
+  assert.equal(isSolid(high.tiles, 8, 11), false, '上路的樓梯應該被拆掉');
+  assert.equal(isSolid(high.tiles, 9, 13), false, '下路必須還能走');
 });
 
 test('第 5 關的刺一定留得下三秒後的活路', () => {
