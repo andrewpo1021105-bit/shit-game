@@ -233,6 +233,40 @@ test('每一關的最後一個梗都在門前發動', () => {
 // 門前那一下是全遊戲最重要的位置——鐵則 6 說最後一個梗必須在那裡。
 // 但「必須在門前」很容易退化成「每關都用同一招」：玩到第三關就背起來，
 // 那個最該嚇到人的地方反而變成最可預測的。所以這裡限制重複次數。
+
+// 每種動作只挑「玩家看得出來的差異」欄位進比對式：
+// - moveDoor 的 x/y/leaveHole 決定門往哪滑、滑多遠、滑走後留不留洞，
+//   這是玩家眼睛看得到的招式形狀（第 1 關滑door留洞、第 4/7 關門跳三格，
+//   一眼就看得出是兩招）。
+// - lockDoor 的 s、dropBlock 的 y、setTune 的 tune 數值，都是後端調校用的
+//   幅度／秒數，玩家不會去背「這關鎖了 1.2 秒還是 1.4 秒」，感覺到的就是
+//   「門鎖住了」「方塊砸下來了」，所以這些欄位刻意不列——列進去只會把同一招
+//   拆成好幾種，反而讓偵測失靈（之前拿整個物件 JSON 比對就是踩到這個坑：
+//   第 2 關 lockDoor s=1.2、第 6 關 s=1.4，兩關其實是同一招「鎖門＋長牆」，
+//   卻因為秒數不同被誤判成兩種不同招式）。
+// - addTiles/spawnDecoy/moveDecoy 的座標會決定新東西長在畫面哪裡，玩家看
+//   得到，所以留著；swapDoor 只有 decoy 索引，不影響玩家看到的把戲本身
+//   （都是「跟假門換身分」），不列。
+const PERCEPTUAL_FIELDS = {
+  moveDoor: ['x', 'y', 'leaveHole'],
+  addTiles: ['x', 'y', 'w', 'h'],
+  flipControls: ['on'],
+  spawnDecoy: ['x', 'y'],
+  moveDecoy: ['x', 'y'],
+  swapDoor: [],
+  lockDoor: [],
+  dropBlock: [],
+  setTune: [],
+};
+
+// 沒被列進 PERCEPTUAL_FIELDS 的新動作類型，保守起見比對它全部欄位——
+// 寧可誤判成「不同招」多分幾組，也不要漏掉真正的重複沒抓到。
+function actionSignature(a) {
+  const fields = PERCEPTUAL_FIELDS[a.t] ?? Object.keys(a).filter((k) => k !== 't');
+  const parts = fields.map((k) => `${k}=${JSON.stringify(a[k])}`).sort();
+  return `${a.t}(${parts.join(',')})`;
+}
+
 function doorGagSignature(lv) {
   const built = lv.adapt ? lv.adapt(lv.tiles, createProfile(), { deaths: 0 }) : {};
   const traps = built.traps ?? lv.traps ?? [];
@@ -240,11 +274,7 @@ function doorGagSignature(lv) {
   const gag = traps.find((t) => t.when.t === 'touchDoor')
     ?? traps.find((t) => t.when.t === 'standOn' && Math.abs(t.when.x - lv.door[0]) <= 2);
   if (!gag) return null;
-  // 連參數一起比較，不能只看動作種類：玩家記住的是「門往上跳」還是
-  // 「門往右滑還留洞」這種具體招式，不是抽象的 action type。
-  // 兩關用同一個 type 但參數天差地遠（例如第 1 關滑門留洞、第 4 關門跳三格）
-  // 對玩家來說是兩招不同的騙術，不該被算成同一招。
-  return `${gag.when.t}:${gag.do.map((a) => JSON.stringify(a)).sort().join('+')}`;
+  return `${gag.when.t}:${gag.do.map(actionSignature).sort().join('+')}`;
 }
 
 test('門前的梗不能每關都一樣', () => {
