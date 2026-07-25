@@ -89,9 +89,13 @@ export function createRenderer(canvas) {
     }
   }
 
-  function drawDoor(dx, dy, glow) {
+  function drawDoor(dx, dy, glow, locked = false) {
     const px = dx * TILE, py = dy * TILE;
-    ctx.fillStyle = `rgba(120,220,140,${(0.10 + 0.5 * glow).toFixed(3)})`;
+    // 鎖住的門不發光、改罩一層紅——玩家碰上去沒反應時，
+    // 至少看得出來「它是鎖著的」，而不是以為遊戲當了
+    ctx.fillStyle = locked
+      ? 'rgba(224,75,75,0.28)'
+      : `rgba(120,220,140,${(0.10 + 0.5 * glow).toFixed(3)})`;
     ctx.fillRect(px - 6 - glow * 8, py - 6 - glow * 8, 44 + glow * 16, 40 + glow * 16);
     ctx.fillStyle = '#241608';
     ctx.fillRect(px, py, 32, 32);
@@ -104,6 +108,14 @@ export function createRenderer(canvas) {
     ctx.fillRect(px + 18, py + 20, 9, 8);
     ctx.fillStyle = '#f0c040';
     ctx.fillRect(px + 24, py + 18, 3, 3);
+
+    // 鎖住時橫一道閂
+    if (locked) {
+      ctx.fillStyle = '#e04b4b';
+      ctx.fillRect(px + 1, py + 13, 30, 5);
+      ctx.fillStyle = '#241608';
+      ctx.fillRect(px + 13, py + 14, 6, 3);
+    }
   }
 
   function drawWorld(world, shake) {
@@ -136,7 +148,7 @@ export function createRenderer(canvas) {
     const glow = world.phase === 'won' ? Math.max(0, 1 - world.phaseTimer / 0.45) : 0;
     // 假門必須跟真門畫得一模一樣，否則就不叫假門了
     for (const d of world.decoys) drawDoor(d.x, d.y, 0);
-    drawDoor(world.door.x, world.door.y, glow);
+    drawDoor(world.door.x, world.door.y, glow, world.doorLock > 0);
 
     for (const h of world.hazards) drawHazard(h);
 

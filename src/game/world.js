@@ -54,6 +54,8 @@ function applyBuild(world) {
   world.tune = { ...DEFAULT_TUNE, ...(built.tune ?? {}) };
   // 左右反轉也是命內狀態，重生歸零
   world.flipped = false;
+  // 門被鎖住還剩幾秒。碰到門而它不開，是門前梗裡唯一不需要你動的那種。
+  world.doorLock = 0;
   world.moved = false;      // 這條命有沒有真的開始移動過
   world.hesitated = false;  // 開始移動之後有沒有倒退或停下來想
   world.settled = false;    // 這條命的側寫結算過了沒
@@ -280,7 +282,11 @@ export function updateWorld(world, input, dt) {
     if (a.t === 'dropBlock' || a.t === 'sweepSpike') world.events.push('spike');
     // 左右反轉沒有實體，看不見也聽不見就等於作弊——這一聲是它的公平性保證
     if (a.t === 'flipControls') world.events.push('flip');
+    // 門鎖上也要聽得見，否則玩家只會以為遊戲當了
+    if (a.t === 'lockDoor') world.events.push('lock');
   }
+
+  if (world.doorLock > 0) world.doorLock = Math.max(0, world.doorLock - dt);
 
   updateHazards(world, dt);
 
@@ -294,7 +300,8 @@ export function updateWorld(world, input, dt) {
   if (touchesDeadly(world.map, p)) { kill(world); return; }
   if (p.y > VIEW_H + TILE) { kill(world); return; }
 
-  if (touchingDoor(world) && world.phase === 'play') {
+  // 門鎖著的時候碰到它不算過關。等就好——但它不會告訴你要等多久。
+  if (touchingDoor(world) && world.doorLock <= 0 && world.phase === 'play') {
     // 成功走完也是一筆樣本，不能只從死亡中學習
     settleLife(world);
     world.phase = 'won';

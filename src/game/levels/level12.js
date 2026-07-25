@@ -66,10 +66,18 @@ export default {
 
     const traps = [];
 
-    // 一、落地處的刺
+    // 一、跳過洞的瞬間，手感整個換掉——依你整場的跳法反向調整。
+    //     最後一關不再對你長刺，它改成把你的身體換掉。
+    const apex = median(profile.apexes);
+    const heavy = apex === null || apex >= 45;
     traps.push({
       when: { t: 'crossX', x: start + GAP_W },
-      do: [{ t: 'spawnSpikes', x: spikeX, y: 14, w: 1, h: 1 }],
+      do: [{
+        t: 'setTune',
+        tune: heavy
+          ? { gravityDown: 2600, jumpSpeed: 250 }   // 你老是跳滿 → 跳不高了
+          : { gravityDown: 1100, jumpSpeed: 360 },  // 你老是點跳 → 一按就飛
+      }],
       once: true,
     });
 
@@ -80,10 +88,13 @@ export default {
       once: true,
     });
 
-    // 三、門前最後一格，腳下的地板消失
+    // 三、半空中那排門，在你走過它們底下的時候一起往門口滑過來
     traps.push({
-      when: { t: 'standOn', x: 22, y: 14 },
-      do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
+      when: { t: 'crossX', x: 17 },
+      do: [
+        { t: 'moveDecoy', decoy: 1, x: 4, y: 0 },
+        { t: 'moveDecoy', decoy: 2, x: 2, y: 0 },
+      ],
       once: true,
     });
 

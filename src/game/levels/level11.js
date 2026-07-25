@@ -42,11 +42,12 @@ export default {
     const deaths = ctx.deaths ?? 0;
     const traps = [];
 
-    // 一、跳過洞、落地站穩的瞬間，前面長出一根刺
+    // 一、跳過洞、落地站穩的瞬間，前方的地板自己塌掉一格。
+    //     這一關會慢慢放棄——連陷阱都懶得長出來了，直接讓地板消失。
     if (deaths < EASE_2) {
       traps.push({
         when: { t: 'crossX', x: 16 },
-        do: [{ t: 'spawnSpikes', x: 18, y: 14, w: 1, h: 1 }],
+        do: [{ t: 'crumbleFromRight', y: 14, from: 19 }],
         once: true,
       });
     }
@@ -71,10 +72,14 @@ export default {
       });
     }
 
-    // 四、門往上跳。這一個永遠都在——它可以放水，但不會不出手。
+    // 四、門往上跳，順手把那扇假門拉到真門旁邊。
+    //     這一個永遠都在——它可以放水，但不會不出手。
     traps.push({
       when: { t: 'touchDoor' },
-      do: [{ t: 'moveDoor', x: 0, y: deaths >= EASE_1 ? -2 : -3 }],
+      do: [
+        { t: 'moveDecoy', decoy: 0, x: 4, y: 0 },
+        { t: 'moveDoor', x: 0, y: deaths >= EASE_1 ? -2 : -3 },
+      ],
       once: true,
     });
 

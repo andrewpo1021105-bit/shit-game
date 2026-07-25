@@ -43,11 +43,11 @@ export default {
       do: [{ t: 'spawnSpikes', x: 20, y: 14, w: 1, h: 1 }],
       once: true,
     },
-    // 三、門前最後一格，腳下的地板消失。
-    //     現在你要反著按、還要跳過一個洞。
+    // 三、你以為只剩最後一段平路——門那一側的地板從最右邊往回崩掉一塊。
+    //     你還在反著按，而目的地正在變小。
     {
-      when: { t: 'standOn', x: 22, y: 14 },
-      do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
+      when: { t: 'crossX', x: 20 },
+      do: [{ t: 'crumbleFromRight', y: 14, from: 27 }],
       once: true,
     },
     // 四、碰到門的瞬間控制轉回正常，而門往上跳三格。

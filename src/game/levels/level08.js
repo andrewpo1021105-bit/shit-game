@@ -91,10 +91,14 @@ export default {
           do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
           once: true,
         },
-        // 四、真的碰到門了——門往上跳三格
+        // 四、碰到門的瞬間，門往上跳三格——而且重力在同一幀變回正常。
+        //     你剛剛才適應完變重的手感，最後這一跳又換回來了。
         {
           when: { t: 'touchDoor' },
-          do: [{ t: 'moveDoor', x: 0, y: -3 }],
+          do: [
+            { t: 'setTune', tune: { gravityDown: 1620, jumpSpeed: 304 } },
+            { t: 'moveDoor', x: 0, y: -3 },
+          ],
           once: true,
         },
       ],

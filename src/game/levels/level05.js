@@ -53,10 +53,14 @@ export default {
       do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
       once: true,
     },
-    // 三、跳過去、碰到門了——門在判定過關前一瞬間滑開三格。
+    // 三、跳過去、碰到門了——門在判定過關前一瞬間滑開三格，
+    //     而且鎖上。這一關罰的就是急，所以追到了也還要再等一次。
     {
       when: { t: 'touchDoor' },
-      do: [{ t: 'moveDoor', x: 3, y: 0, leaveHole: true }],
+      do: [
+        { t: 'moveDoor', x: 3, y: 0, leaveHole: true },
+        { t: 'lockDoor', s: 1.2 },
+      ],
       once: true,
     },
     // 四、追到牆角的門前，一塊方塊砸下來

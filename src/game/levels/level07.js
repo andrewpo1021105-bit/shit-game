@@ -70,25 +70,30 @@ export default {
       do: [{ t: 'spawnSpikes', x: 21, y: 14, w: 1, h: 1 }],
       once: true,
     },
-    // 兩條路匯合、門前最後一格，腳下的地板消失
-    {
-      when: { t: 'standOn', x: 22, y: 14 },
-      do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
-      once: true,
-    },
-    // 真的碰到門了——門往上跳兩格，得跳起來才搆得到
-    {
-      when: { t: 'touchDoor' },
-      do: [{ t: 'moveDoor', x: 0, y: -3 }],
-      once: true,
-    },
+    // 門前那一下由 adapt() 決定，因為它要看你在這一關死過幾次
   ],
 
   // 你上次走哪條，這次那條就封死。
   // 永遠只封一條，另一條必定是通的。
-  adapt(tiles, profile) {
-    if (profile.lastRoute === 'low') return { tiles: sealLow(tiles) };
-    if (profile.lastRoute === 'high') return { tiles: sealHigh(tiles) };
-    return { tiles: tiles.slice() };
+  adapt(tiles, profile, ctx = {}) {
+    const base = profile.lastRoute === 'low' ? sealLow(tiles)
+      : profile.lastRoute === 'high' ? sealHigh(tiles)
+        : tiles.slice();
+
+    const doorGag = (ctx.deaths ?? 0) === 0
+      // 第一條命：你走了一整關的岔路，最後碰到的那扇門——
+      // 跟你頭頂上那扇假的交換了身分。這一關教的是「你老是走同一邊」，
+      // 結尾也是同一件事：你選了看起來對的那個，而那正是錯的。
+      ? { t: 'swapDoor', decoy: 0 }
+      // 只騙這一次。死過之後門是真的了——重複同一個謊就只是刁難。
+      : { t: 'moveDoor', x: 0, y: -3 };
+
+    return {
+      tiles: base,
+      traps: [
+        ...this.traps,
+        { when: { t: 'touchDoor' }, do: [doorGag], once: true },
+      ],
+    };
   },
 };

@@ -43,6 +43,8 @@ export function createAudio() {
       else if (name === 'death') { noise(0.25, 0.12); tone(300, 60, 0.30, 'sawtooth', 0.07); }
       // 反轉沒有實體，所以這一聲就是它唯一的存在證明：一個由高滑到低的倒轉音
       else if (name === 'flip') { tone(1200, 300, 0.18, 'sawtooth', 0.07); tone(300, 1200, 0.18, 'square', 0.04); }
+      // 門閂落下的悶響。沒有這一聲，玩家只會以為遊戲當了
+      else if (name === 'lock') { tone(220, 90, 0.16, 'square', 0.09); noise(0.05, 0.08); }
       else if (name === 'win') {
         [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, f, 0.12, 'square', 0.07), i * 90));
       }

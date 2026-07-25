@@ -44,23 +44,22 @@ export default {
       do: [{ t: 'dropBlock', x: 20, y: 5 }],
       once: true,
     },
-    // 三、門前最後一格，腳下的地板消失
-    {
-      when: { t: 'standOn', x: 22, y: 14 },
-      do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
-      once: true,
-    },
-    // 四、真的碰到門了——門往上跳三格
-    {
-      when: { t: 'touchDoor' },
-      do: [{ t: 'moveDoor', x: 0, y: -3 }],
-      once: true,
-    },
-    // 五、死了三次之後，面板旁邊多一扇假門。
-    //     你已經在盯著數字看了，不會注意到門變成兩扇。
+    // 三、死了三次之後，路中間多一扇假門。
+    //     你已經在盯著面板上的數字看了，不會注意到門變成兩扇。
     {
       when: { t: 'deathCount', n: 3 },
-      do: [{ t: 'spawnDecoy', x: 20, y: 8 }],
+      do: [{ t: 'spawnDecoy', x: 16, y: 8 }],
+      once: true,
+    },
+    // 四、你碰到門了，門鎖住 1.1 秒——然後在你眼前又長出一扇一模一樣的。
+    //     面板還在旁邊即時跳動。等鎖開的時候，你已經不確定該碰哪一扇了。
+    {
+      when: { t: 'touchDoor' },
+      do: [
+        { t: 'lockDoor', s: 1.1 },
+        { t: 'spawnDecoy', x: 21, y: 8 },
+        { t: 'addTiles', x: 26, y: 11, w: 1, h: 3 },
+      ],
       once: true,
     },
   ],

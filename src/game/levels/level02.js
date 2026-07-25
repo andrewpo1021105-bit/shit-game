@@ -74,22 +74,29 @@ export default {
           do: [{ t: 'spawnSpikes', x: spikeX, y: 14, w: 1, h: 1 }],
           once: true,
         },
-        // 快到門了，右邊掃來一根刺
+        // 快到門了——你頭頂上那扇假門，安靜地滑到真門旁邊。
+        // 這裡刻意不用橫掃的刺：會動的危險物躲不躲得掉全看時機，
+        // 而這個遊戲不考時機。假門移動一格傷害都沒有，卻更難處理。
         {
           when: { t: 'crossX', x: 21 },
-          do: [{ t: 'sweepSpike', x: 28, y: 13, vx: -85 }],
-          once: true,
-        },
-        // 門前最後一格，腳下的地板消失
-        {
-          when: { t: 'standOn', x: 22, y: 14 },
-          do: [{ t: 'removeTiles', x: 23, y: 14, w: 1, h: 3 }],
+          do: [{ t: 'moveDecoy', decoy: 0, x: 5, y: 0 }],
           once: true,
         },
         // 死了三次之後，門旁邊再多一扇假門——背下來的路線從這裡開始失效
         {
           when: { t: 'deathCount', n: 3 },
           do: [{ t: 'spawnDecoy', x: 21, y: 8 }],
+          once: true,
+        },
+        // 你碰到門了，門就是不開——同時右邊落下一堵牆把你關在門口。
+        // 解法是站著等，沒有別的。牆是必要的：沒有它你會直接走過門，
+        // 等鎖開的時候人已經不在那裡了。
+        {
+          when: { t: 'touchDoor' },
+          do: [
+            { t: 'lockDoor', s: 1.2 },
+            { t: 'addTiles', x: 26, y: 11, w: 1, h: 3 },
+          ],
           once: true,
         },
       ],

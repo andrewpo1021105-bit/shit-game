@@ -230,6 +230,48 @@ test('每一關的最後一個梗都在門前發動', () => {
   }
 });
 
+// 門前那一下是全遊戲最重要的位置——鐵則 6 說最後一個梗必須在那裡。
+// 但「必須在門前」很容易退化成「每關都用同一招」：玩到第三關就背起來，
+// 那個最該嚇到人的地方反而變成最可預測的。所以這裡限制重複次數。
+function doorGagSignature(lv) {
+  const built = lv.adapt ? lv.adapt(lv.tiles, createProfile(), { deaths: 0 }) : {};
+  const traps = built.traps ?? lv.traps ?? [];
+  // 「門前」的定義跟上面那條測試一致：碰到門的瞬間，或踩在離門兩格以內的地板上
+  const gag = traps.find((t) => t.when.t === 'touchDoor')
+    ?? traps.find((t) => t.when.t === 'standOn' && Math.abs(t.when.x - lv.door[0]) <= 2);
+  if (!gag) return null;
+  return `${gag.when.t}:${gag.do.map((a) => a.t).sort().join('+')}`;
+}
+
+test('門前的梗不能每關都一樣', () => {
+  const MAX_REPEAT = 2;
+  const counts = new Map();
+  for (const lv of LEVELS) {
+    const sig = doorGagSignature(lv);
+    if (!sig) continue;
+    counts.set(sig, [...(counts.get(sig) ?? []), lv.id]);
+  }
+  for (const [sig, ids] of counts) {
+    assert.ok(ids.length <= MAX_REPEAT,
+      `門前梗「${sig}」被第 ${ids.join('、')} 關重複用了 ${ids.length} 次。`
+      + '玩家會背起來，最後一段路就不再嚇人了。');
+  }
+});
+
+test('沒有哪一種陷阱動作被濫用到蓋過其他所有招式', () => {
+  const MAX_LEVELS_PER_ACTION = 7;
+  const inLevels = new Map();
+  for (const lv of LEVELS) {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile(), { deaths: 0 }) : {};
+    const kinds = new Set((built.traps ?? lv.traps ?? []).flatMap((t) => t.do.map((a) => a.t)));
+    for (const k of kinds) inLevels.set(k, [...(inLevels.get(k) ?? []), lv.id]);
+  }
+  for (const [action, ids] of inLevels) {
+    assert.ok(ids.length <= MAX_LEVELS_PER_ACTION,
+      `${action} 出現在 ${ids.length} 關（第 ${ids.join('、')} 關），這一招被當成萬用解了`);
+  }
+});
+
 test('沒有任何梗在出生點附近就觸發——那等於預告', () => {
   const TOO_EARLY = 6;
   for (const lv of LEVELS) {

@@ -132,6 +132,34 @@ export function applyAction(world, action) {
       }
       break;
     }
+    case 'crumbleFromRight': {
+      // 同樣的東西，但從門那一側往回吃。這是「切斷去路」而不是「切斷退路」，
+      // 玩家會眼睜睜看著自己要去的地方一格一格消失。
+      const row = world.map[action.y];
+      // from 讓關卡指定「從哪一格開始往回吃」，免得每次都只咬到邊界牆
+      const start = Math.min(action.from ?? row.length - 2, row.length - 2);
+      for (let x = start; x > 0; x--) {
+        if (row[x] === '#') {
+          paint(world, x, action.y, 1, world.map.length - action.y, '.');
+          break;
+        }
+      }
+      break;
+    }
+    case 'lockDoor':
+      // 你碰到門了，門就是不開。沒有解釋，只有一個倒數。
+      // 解法永遠是「站在那裡等」——所以它考的是你敢不敢不動，
+      // 而不是你手多快。等的期間通常會有別的東西找上你。
+      world.doorLock = Math.max(world.doorLock ?? 0, action.s ?? 1);
+      break;
+    case 'moveDecoy': {
+      // 假門也會跑。這樣「哪一扇是真的」就不是背得起來的知識。
+      const d = world.decoys[action.decoy ?? 0];
+      if (!d) break;
+      d.x = Math.min(MAP_W - 3, Math.max(1, d.x + (action.x ?? 0)));
+      d.y = Math.min(MAP_H - 4, Math.max(1, d.y + (action.y ?? 0)));
+      break;
+    }
     case 'flipControls':
       // 左右對調。這是命內翻臉，重生就歸零（applyBuild 會清掉）。
       // 公平性靠「觸發那一瞬間看得見」：world.js 會推一個 flip 事件，

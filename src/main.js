@@ -36,6 +36,7 @@ function step(dt) {
     if (e === 'spike') shake = 3;
     if (e === 'thud') shake = 4;
     if (e === 'flip') shake = 6;
+    if (e === 'lock') shake = 3;
   }
   shake = Math.max(0, shake - dt * 20);
 }

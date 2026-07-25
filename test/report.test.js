@@ -16,13 +16,16 @@ function run(s, seconds) {
   for (let i = 0; i < n; i++) updateSession(s, NONE, PHYSICS_DT);
 }
 
+// 直接把玩家塞到門上。門會閃開，也可能鎖住不開，
+// 所以要一直追著它的現在位置塞，直到鎖也退完為止。
 function forceWin(s) {
-  for (let i = 0; i < 8 && s.world.phase !== 'won'; i++) {
+  const limit = Math.round(3 / PHYSICS_DT);
+  for (let i = 0; i < limit && s.world.phase !== 'won'; i++) {
     s.world.player.x = s.world.door.x * TILE + 4;
     s.world.player.y = s.world.door.y * TILE + 2;
     updateSession(s, NONE, PHYSICS_DT);
   }
-  assert.equal(s.world.phase, 'won', '追著門塞了幾次還是沒過關');
+  assert.equal(s.world.phase, 'won', '追著門塞了三秒還是沒過關');
 }
 
 function fullProfile() {
