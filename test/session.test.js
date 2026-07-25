@@ -133,3 +133,26 @@ test('遊玩中按 R 會重來本關但保留死亡數', () => {
   assert.equal(s.world.deaths, 3);
   assert.ok(Math.abs(s.world.player.x - (LEVELS[0].spawn[0] * TILE + 3)) < 1);
 });
+
+test('假通關不會讓 session 進轉場', () => {
+  const level = {
+    id: 98, name: '假過關',
+    tiles: [
+      '##############################',
+      ...Array(13).fill('#............................#'),
+      '##############################',
+      '##############################',
+      '##############################',
+    ],
+    spawn: [3, 13], door: [24, 12],
+    decoys: [[20, 8]],
+    traps: [{ when: { t: 'crossX', x: 8 }, do: [{ t: 'fakeWin', s: 1.2 }], once: true }],
+  };
+  const session = createSession([level, { ...level, id: 97 }]);
+  for (let i = 0; i < Math.round(1.5 / PHYSICS_DT); i++) {
+    updateSession(session, { left: false, right: true, jump: false }, PHYSICS_DT);
+  }
+  assert.equal(session.world.phase, 'faking');
+  assert.equal(session.phase, 'play', 'session 只認真的通關');
+  assert.equal(session.index, 0, '不能因為演出就換關');
+});

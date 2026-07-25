@@ -151,7 +151,12 @@ export function createRenderer(canvas) {
       }
 
     // 過關瞬間門會亮一下再收回去
-    const glow = world.phase === 'won' ? Math.max(0, 1 - world.phaseTimer / 0.45) : 0;
+    // 假通關必須跟真通關畫得一模一樣，所以兩者共用同一條時間軸。
+    // 差別只在真通關用 phaseTimer，假通關用 fakeTimer。
+    const winLike = world.phase === 'won'
+      || (world.phase === 'faking' && world.fakeKind === 'win');
+    const winT = world.phase === 'won' ? world.phaseTimer : world.fakeTimer;
+    const glow = winLike ? Math.max(0, 1 - winT / 0.45) : 0;
     // 假門必須跟真門畫得一模一樣，否則就不叫假門了
     for (const d of world.decoys) drawDoor(d.x, d.y, 0);
     drawDoor(world.door.x, world.door.y, glow, world.doorLock > 0);
@@ -188,7 +193,7 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
 
     if (world.level.showProfile) drawProfilePanel(world);
-    if (world.phase === 'won') drawWinOverlay(world);
+    if (winLike) drawWinOverlay(world, winT);
   }
 
   // 第 9 關：把它算到的東西即時攤在你眼前。它不解釋任何一個數字。
@@ -226,8 +231,7 @@ export function createRenderer(canvas) {
     });
   }
 
-  function drawWinOverlay(world) {
-    const t = world.phaseTimer;
+  function drawWinOverlay(world, t) {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
     ctx.fillStyle = `rgba(5,6,10,${(0.78 * Math.min(1, t / 0.35)).toFixed(3)})`;

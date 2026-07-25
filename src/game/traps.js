@@ -208,6 +208,21 @@ export function applyAction(world, action) {
       d.y = y;
       break;
     }
+    case 'fakeDeath':
+    case 'fakeWin': {
+      // 演一次死亡／過關。震動、音效、CLEAR! 字樣全部跟真的一模一樣，
+      // 但你沒死也沒過。它破壞的是玩家最底層的信任：
+      // 你連「我剛剛是不是死了」都不確定。
+      if (world.phase !== 'play') break;
+      world.phase = 'faking';
+      world.fakeKind = action.t === 'fakeWin' ? 'win' : 'death';
+      world.fakeTimer = 0;
+      world.fakeDuration = action.s ?? (action.t === 'fakeWin' ? 1.2 : 0.6);
+      // 停住。真的死亡是不會繼續往前滑的。
+      world.player.vx = 0;
+      world.player.vy = 0;
+      break;
+    }
     case 'noteRoute':
       // 玩家此刻在分界線上方還是下方，決定他走的是哪條路
       noteRoute(

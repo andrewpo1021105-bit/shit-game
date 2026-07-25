@@ -59,6 +59,10 @@ function applyBuild(world) {
   world.moved = false;      // 這條命有沒有真的開始移動過
   world.hesitated = false;  // 開始移動之後有沒有倒退或停下來想
   world.settled = false;    // 這條命的側寫結算過了沒
+  // 假死／假通關的演出狀態。跟其他命內狀態一樣，重生歸零。
+  world.fakeKind = null;
+  world.fakeTimer = 0;
+  world.fakeDuration = 0;
   world.phase = 'play';
   world.phaseTimer = 0;
 }
@@ -201,6 +205,22 @@ export function updateWorld(world, input, dt) {
   }
   if (world.phase === 'won') { world.phaseTimer += dt; return; }
 
+  // 演出期間輸入完全無效——它要看起來就是一次真的死亡／過關。
+  if (world.phase === 'faking') {
+    world.fakeTimer += dt;
+    if (world.fakeTimer >= world.fakeDuration) {
+      // 假通關演完，真門跟第 0 扇假門交換身分：
+      // 你剛剛「走進去」的那扇，現在是會殺你的那扇。
+      // 沒有假門就不換——單純演完恢復。
+      if (world.fakeKind === 'win' && world.decoys.length > 0) {
+        applyAction(world, { t: 'swapDoor', decoy: 0 });
+      }
+      world.fakeKind = null;
+      world.phase = 'play';
+    }
+    return;
+  }
+
   const p = world.player;
   const prevX = p.x + p.w / 2;
   const prevY = p.y + p.h / 2;
@@ -284,6 +304,9 @@ export function updateWorld(world, input, dt) {
     if (a.t === 'flipControls') world.events.push('flip');
     // 門鎖上也要聽得見，否則玩家只會以為遊戲當了
     if (a.t === 'lockDoor') world.events.push('lock');
+    // 假的也要有聲音與震動，否則它就不像真的了
+    if (a.t === 'fakeDeath') world.events.push('death');
+    if (a.t === 'fakeWin') world.events.push('win');
   }
 
   if (world.doorLock > 0) world.doorLock = Math.max(0, world.doorLock - dt);

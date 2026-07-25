@@ -360,3 +360,66 @@ test('死亡事件會出現在 events 裡', () => {
   }
   assert.equal(sawDeath, true);
 });
+
+// 一條完全空的平路，走到 x=8 就觸發指定的動作
+function actionLevel(id, action) {
+  return {
+    id, name: '測試用',
+    tiles: [
+      '##############################',
+      ...Array(13).fill('#............................#'),
+      '##############################',
+      '##############################',
+      '##############################',
+    ],
+    spawn: [3, 13], door: [24, 12],
+    decoys: [[20, 8]],
+    traps: [{ when: { t: 'crossX', x: 8 }, do: [action], once: true }],
+  };
+}
+
+function runTo(world, seconds, input = { left: false, right: true, jump: false }) {
+  for (let i = 0; i < Math.round(seconds / PHYSICS_DT); i++) updateWorld(world, input, PHYSICS_DT);
+}
+
+test('假死看起來就是死亡，但沒有真的死', () => {
+  const world = createWorld(actionLevel(99, { t: 'fakeDeath', s: 0.6 }));
+  // 撞到觸發線大約在 0.68 秒，s=0.6 的演出會在 1.28 秒左右演完，
+  // 所以要在這段窗口中間取樣，才驗得到「正在演」的狀態。
+  runTo(world, 1.0);
+  assert.equal(world.phase, 'faking', '應該正在演出');
+  assert.equal(world.fakeKind, 'death');
+  assert.equal(world.deaths, 0, '假死不能算進死亡數');
+  assert.equal(world.player.vx, 0, '演出期間人是停住的');
+});
+
+test('假死演完就原地繼續，位置不變', () => {
+  const world = createWorld(actionLevel(99, { t: 'fakeDeath', s: 0.6 }));
+  runTo(world, 1.0);
+  const x = world.player.x;
+  // 這裡刻意不繼續按右——要驗的是「演完沒有被傳送」，
+  // 不是「玩家自己選擇停下來」，所以後半段不能再給位移輸入。
+  runTo(world, 0.5, { left: false, right: false, jump: false });
+  assert.equal(world.phase, 'play');
+  assert.equal(world.fakeKind, null);
+  assert.equal(world.player.x, x, '演完人要在原地，不是回到出生點');
+});
+
+test('假通關演完會把真門換成假門', () => {
+  const world = createWorld(actionLevel(99, { t: 'fakeWin', s: 1.2 }));
+  const before = { x: world.door.x, y: world.door.y };
+  runTo(world, 1.5);
+  assert.equal(world.fakeKind, 'win');
+  runTo(world, 1.3);
+  assert.equal(world.phase, 'play');
+  assert.notDeepEqual({ x: world.door.x, y: world.door.y }, before,
+    '你剛剛「過關」的那扇門現在是假的');
+});
+
+test('重生會清掉演出狀態', () => {
+  const world = createWorld(actionLevel(99, { t: 'fakeDeath', s: 0.6 }));
+  runTo(world, 1.5);
+  resetLevel(world);
+  assert.equal(world.phase, 'play');
+  assert.equal(world.fakeKind, null);
+});
