@@ -483,23 +483,70 @@ export function createRenderer(canvas) {
     });
   }
 
+  // 過關演出。煙火、衝擊波、金光——越華麗越好,因為假通關也走同一條路:
+  // 你被騙的時候,連煙火都是全套的。
+  // 所有粒子位置都是 t 與編號的函數,不用亂數,同一幀畫幾次都一樣。
+  const FW_COLORS = ['#ffd75e', '#8fd6a0', '#ffffff', '#e04b4b', '#7fb2ff'];
+
   function drawWinOverlay(world, t) {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
-    ctx.fillStyle = `rgba(5,6,10,${(0.78 * Math.min(1, t / 0.35)).toFixed(3)})`;
+    ctx.fillStyle = `rgba(5,6,10,${(0.72 * Math.min(1, t / 0.35)).toFixed(3)})`;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
+    // 開場白光一閃
+    if (t < 0.16) {
+      ctx.fillStyle = `rgba(255,255,255,${(0.7 * (1 - t / 0.16)).toFixed(3)})`;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+
+    // 兩圈煙火粒子往外炸,外圈快、內圈慢,尾端慢慢熄掉
+    for (let ring = 0; ring < 2; ring++) {
+      const n = ring === 0 ? 18 : 12;
+      const speed = ring === 0 ? 150 : 90;
+      const delay = ring * 0.12;
+      const life = Math.max(0, t - delay);
+      const r = speed * life * (1 - life * 0.35);
+      if (life <= 0 || life > 1.3) continue;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + ring * 0.26 + t * 0.4;
+        const sz = Math.max(1, 4 - life * 3);
+        ctx.fillStyle = FW_COLORS[(i + ring) % FW_COLORS.length];
+        ctx.globalAlpha = Math.max(0, 1 - life * 0.8);
+        ctx.fillRect(cx + Math.cos(a) * r - sz / 2, cy - 8 + Math.sin(a) * r * 0.62 - sz / 2, sz, sz);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // 衝擊波:一圈往外擴的細框
+    const wave = Math.min(1, t / 0.5);
+    if (wave < 1) {
+      const wr = 20 + wave * 190;
+      const wh = wr * 0.55;
+      ctx.fillStyle = `rgba(255,215,94,${(0.5 * (1 - wave)).toFixed(3)})`;
+      ctx.fillRect(cx - wr, cy - 8 - wh, wr * 2, 2);
+      ctx.fillRect(cx - wr, cy - 8 + wh, wr * 2, 2);
+      ctx.fillRect(cx - wr, cy - 8 - wh, 2, wh * 2);
+      ctx.fillRect(cx + wr - 2, cy - 8 - wh, 2, wh * 2);
+    }
+
+    // CLEAR! 金字彈出來,帶一點回彈跟影子
     ctx.textAlign = 'center';
-    const pop = Math.min(1, t / 0.22);
-    const size = Math.round(12 + 16 * (1 - (1 - pop) * (1 - pop)));
+    const pop = Math.min(1, t / 0.26);
+    const bounce = 1 - (1 - pop) ** 3 + (pop >= 1 ? Math.sin(Math.min(t - 0.26, 0.5) * 10) * 0.04 : 0);
+    const size = Math.round(30 * bounce) + 4;
     ctx.font = `bold ${size}px Consolas, monospace`;
-    ctx.fillStyle = C.scan;
+    ctx.fillStyle = '#3a2c05';
+    ctx.fillText('CLEAR!', cx + 2, cy - 2);
+    ctx.fillStyle = '#ffd75e';
     ctx.fillText('CLEAR!', cx, cy - 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = `bold ${Math.max(4, Math.round(size * 0.28))}px Consolas, monospace`;
 
     if (t > 0.4) {
-      ctx.font = '8px Consolas, monospace';
+      ctx.font = '9px Consolas, monospace';
       ctx.fillStyle = '#d8dae6';
-      ctx.fillText(`DEATHS  ${world.deaths}`, cx, cy + 18);
+      ctx.fillText(`DEATHS  ${world.deaths}`, cx, cy + 20);
     }
     ctx.textAlign = 'left';
   }
@@ -526,6 +573,50 @@ export function createRenderer(canvas) {
     });
   }
 
+  // 開場畫面。陽光草地、被殭屍追著跑的方塊人——看起來是快樂遊戲,
+  // 這個第一印象本身就是全遊戲的第一個陷阱。
+  function drawIntro(t) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawSky({ time: t });
+
+    // 地面:一整條草皮方塊
+    ctx.fillStyle = MC.dirt;
+    ctx.fillRect(0, 232, VIEW_W, VIEW_H - 232);
+    ctx.fillStyle = MC.grassSide;
+    ctx.fillRect(0, 232, VIEW_W, 5);
+    ctx.fillStyle = MC.grassEdge;
+    ctx.fillRect(0, 232, VIEW_W, 2);
+    ctx.fillStyle = MC.dirtSpeck;
+    for (let x = 8; x < VIEW_W; x += 24) ctx.fillRect(x, 244 + (x % 3) * 5, 3, 2);
+
+    // 一個人被一隻綠色的東西追著跑,永遠追不上,永遠在跑
+    const span = VIEW_W + 120;
+    const sx = ((t * 55) % span) - 60;
+    const bob = Math.floor(sx / 16) % 2 === 0 ? -1 : 0;
+    drawSteve({ x: sx, y: 216, facing: 1 }, bob);
+    drawEnemy({ kind: 'walker', x: sx - 42, y: 218, w: 12, h: 14 });
+
+    // 標題:金字帶黑影,輕輕浮動
+    const cy = 92 + Math.sin(t * 1.8) * 3;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 44px "Microsoft JhengHei", sans-serif';
+    ctx.fillStyle = '#2b1d04';
+    ctx.fillText('搞 人 遊 戲', VIEW_W / 2 + 3, cy + 3);
+    ctx.fillStyle = '#ffd75e';
+    ctx.fillText('搞 人 遊 戲', VIEW_W / 2, cy);
+
+    ctx.font = '11px "Microsoft JhengHei", sans-serif';
+    ctx.fillStyle = '#1d3557';
+    ctx.fillText('17 關 · 每一關都會騙你 · 計時上排行榜', VIEW_W / 2, cy + 26);
+
+    if (Math.floor(t * 1.6) % 2 === 0) {
+      ctx.font = 'bold 12px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#e04b4b';
+      ctx.fillText('按 任 意 鍵 開 始', VIEW_W / 2, 190);
+    }
+    ctx.textAlign = 'left';
+  }
+
   // 轉場：黑幕由上往下蓋滿 → 分析你 → 由上往下掀開露出下一關
   function drawTransition(session) {
     const t = session.timer;
@@ -546,85 +637,98 @@ export function createRenderer(canvas) {
     ctx.fillRect(0, Math.round(barY) - 5, VIEW_W, 4);
     ctx.globalAlpha = 1;
 
-    // 只在全黑那段時間顯示文字
+    // 只在全黑那段時間顯示文字。分析演出拿掉了——
+    // 現在只報下一關的編號,有狠話要放的關卡(announce)照樣放。
     if (t < SWEEP_IN || t >= REVEAL_AT) return;
+
+    const next = session.revealed
+      ? session.world.level
+      : (session.levels[session.index + 1] ?? session.world.level);
 
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
     ctx.textAlign = 'center';
 
-    ctx.font = '10px Consolas, monospace';
+    const pop = clamp01((t - SWEEP_IN) / 0.3);
+    ctx.font = `bold ${Math.round(10 + 14 * pop)}px Consolas, monospace`;
     ctx.fillStyle = C.scan;
-    ctx.fillText(typed('ANALYSING...', t, SWEEP_IN + 0.05, 0.35), cx, cy - 12);
+    ctx.fillText(`LEVEL ${next.id}`, cx, cy - 6);
 
-    // 沒有樣本就只掃描不下結論——寧可沉默也不要講沒根據的話
-    if (t > 1.0 && session.analysis) {
+    if (next.announce) {
       ctx.font = '11px "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#d8dae6';
-      const line = typed(session.analysis, t, 1.0, 0.45);
-      ctx.fillText(line, cx, cy + 10);
-      // 游標
-      if (Math.floor(t * 6) % 2 === 0) {
-        const w = ctx.measureText(line).width;
-        ctx.fillStyle = C.scan;
-        ctx.fillRect(cx + w / 2 + 2, cy + 2, 5, 10);
-      }
+      ctx.fillText(typed(next.announce, t, SWEEP_IN + 0.3, 0.45), cx, cy + 16);
     }
     ctx.textAlign = 'left';
   }
 
-  // 結算：整場的分析報告。這才是要傳給朋友的東西——
-  // 不是死亡數，是它對你的評語。所以一行一行打出來，讓人讀得完。
+  // 結算:排行榜就是主角。分析報告的演出拿掉了——
+  // 你走完 17 關,唯一該面對的數字就是時間,跟過去的自己排排站。
   function drawFinished(session) {
     const t = session.timer;
+    const cx = VIEW_W / 2;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = C.void;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
+    // 背景煙火:三個定點輪流炸,位置與時間全是確定性的
+    for (let f = 0; f < 3; f++) {
+      const life = ((t * 0.7 + f * 0.33) % 1);
+      const fx = [70, VIEW_W - 70, cx][f];
+      const fy = [60, 52, 40][f];
+      const r = life * 46;
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + f;
+        ctx.fillStyle = FW_COLORS[(i + f) % FW_COLORS.length];
+        ctx.globalAlpha = Math.max(0, 0.9 - life);
+        ctx.fillRect(fx + Math.cos(a) * r, fy + Math.sin(a) * r * 0.7, 2, 2);
+      }
+    }
+    ctx.globalAlpha = 1;
+
     ctx.textAlign = 'center';
-    ctx.font = 'bold 18px Consolas, monospace';
+    const pop = clamp01(t / 0.35);
+    ctx.font = `bold ${Math.round(8 + 16 * (1 - (1 - pop) ** 3))}px "Microsoft JhengHei", sans-serif`;
+    ctx.fillStyle = '#3a2c05';
+    ctx.fillText('全 部 通 關', cx + 2, 36);
+    ctx.fillStyle = '#ffd75e';
+    ctx.fillText('全 部 通 關', cx, 34);
+
+    ctx.font = 'bold 20px Consolas, monospace';
     ctx.fillStyle = C.scan;
-    ctx.fillText('ANALYSIS COMPLETE', VIEW_W / 2, 34);
-
-    ctx.font = '8px Consolas, monospace';
+    ctx.fillText(fmtTime(session.totalTime), cx, 62);
+    ctx.font = '9px Consolas, monospace';
     ctx.fillStyle = C.uiHot;
-    ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}    TIME  ${fmtTime(session.totalTime)}`, VIEW_W / 2, 48);
+    ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}`, cx, 76);
 
-    // 一行一行浮出來，一行 0.45 秒
-    ctx.textAlign = 'left';
-    ctx.font = '11px "Microsoft JhengHei", sans-serif';
-    const lines = session.report ?? [];
-    lines.forEach((line, i) => {
-      const start = 0.6 + i * 0.45;
-      if (t < start) return;
-      ctx.fillStyle = i === lines.length - 1 ? C.scan : '#d8dae6';
-      ctx.fillText(typed(line, t, start, 0.4), 26, 74 + i * 17);
-    });
-
-    const done = 0.6 + lines.length * 0.45 + 0.6;
-
-    // 通關時間排行榜。存在你自己的瀏覽器裡——跟你比的人永遠是過去的你。
-    // 報告唸完才浮出來,免得跟評語搶注意力。
-    const board = session.leaderboard ?? [];
-    if (board.length > 0 && t > done - 0.4) {
-      ctx.textAlign = 'center';
-      ctx.font = '8px Consolas, monospace';
-      ctx.fillStyle = C.scan;
-      ctx.fillText('── BEST TIMES ──', VIEW_W / 2, 190);
-      board.slice(0, 5).forEach((r, i) => {
+    // 通關時間排行榜——放大版,前十名一次攤開。
+    // 存在你自己的瀏覽器裡:跟你比的人永遠是過去的你。
+    const board = (session.leaderboard ?? []).slice(0, 10);
+    if (board.length > 0 && t > 0.5) {
+      ctx.font = 'bold 11px Consolas, monospace';
+      ctx.fillStyle = '#ffd75e';
+      ctx.fillText('─────  BEST TIMES  ─────', cx, 98);
+      ctx.font = '10px Consolas, monospace';
+      board.forEach((r, i) => {
+        if (t < 0.5 + i * 0.12) return;   // 一行一行浮出來
         const mine = r === session.lastEntry;
-        ctx.fillStyle = mine ? C.scan : '#d8dae6';
+        const y = 114 + i * 14;
+        if (mine) {
+          ctx.fillStyle = 'rgba(143,214,160,0.16)';
+          ctx.fillRect(cx - 130, y - 10, 260, 13);
+        }
+        ctx.fillStyle = mine ? C.scan : (i === 0 ? '#ffd75e' : '#d8dae6');
+        const rank = i === 0 ? '♛1' : ` ${i + 1}`;
         ctx.fillText(
-          `${i + 1}.  ${fmtTime(r.time)}   DEATHS ${r.deaths}   ${r.date}${mine ? '  ◄ 這次' : ''}`,
-          VIEW_W / 2, 202 + i * 11,
+          `${rank}   ${fmtTime(r.time)}    DEATHS ${String(r.deaths).padStart(3)}    ${r.date}${mine ? ' ◄' : ''}`,
+          cx, y,
         );
       });
     }
 
-    if (t > done && Math.floor(t * 1.5) % 2 === 0) {
-      ctx.textAlign = 'center';
+    if (t > 1.6 && Math.floor(t * 1.5) % 2 === 0) {
       ctx.font = '8px Consolas, monospace';
       ctx.fillStyle = C.ui;
-      ctx.fillText('PRESS  C  TO COPY', VIEW_W / 2, VIEW_H - 12);
+      ctx.fillText('PRESS  C  TO COPY', cx, VIEW_H - 8);
     }
     ctx.textAlign = 'left';
   }
@@ -640,5 +744,5 @@ export function createRenderer(canvas) {
 
   resize();
   window.addEventListener('resize', resize);
-  return { resize, draw };
+  return { resize, draw, drawIntro };
 }

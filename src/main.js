@@ -45,14 +45,21 @@ function recordRun() {
   session.lastEntry = entry;   // entry 就在 board 裡,畫排行榜時用身分比對挑出這一筆
 }
 
+// 開場畫面。按任何一個方向鍵或跳躍才進遊戲——計時也從那一刻才開始跑。
+let started = false;
+let introT = 0;
+
 function step(dt) {
+  if (!started) {
+    introT += dt;
+    if (input.state.left || input.state.right || input.state.jump) started = true;
+    input.consumeRestart();   // 開場按 R 不該累積成遊戲裡的重來
+    return;
+  }
   if (input.consumeRestart()) restartLevel(session);
-  // 報告是要傳給朋友的，所以一定要複製得走
+  // 戰績是要傳給朋友的，所以一定要複製得走
   if (input.consumeCopy() && session.phase === 'finished') {
-    const text = [
-      `搞人遊戲 — 總共死了 ${session.totalDeaths} 次,花了 ${fmtTime(session.totalTime)}`,
-      ...session.report,
-    ].join('\n');
+    const text = `搞人遊戲 — 總共死了 ${session.totalDeaths} 次,花了 ${fmtTime(session.totalTime)}`;
     navigator.clipboard?.writeText(text).catch(() => {});
   }
   updateSession(session, input.state, dt);
@@ -73,6 +80,7 @@ function step(dt) {
 }
 
 function render() {
+  if (!started) { renderer.drawIntro(introT); return; }
   renderer.draw(session, shake);
 }
 
