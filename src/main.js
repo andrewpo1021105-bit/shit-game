@@ -50,9 +50,15 @@ let started = false;
 let introT = 0;
 
 function step(dt) {
+  // M 靜音/開音樂,開場中也有效
+  if (input.consumeMute()) audio.toggleMusic();
   if (!started) {
     introT += dt;
-    if (input.state.left || input.state.right || input.state.jump) started = true;
+    if (input.state.left || input.state.right || input.state.jump) {
+      started = true;
+      // 瀏覽器規定要有使用者手勢才准出聲——開始遊戲的這一下正好
+      audio.startMusic();
+    }
     input.consumeRestart();   // 開場按 R 不該累積成遊戲裡的重來
     return;
   }

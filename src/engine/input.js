@@ -6,12 +6,16 @@ const KEYS = {
 
 export function createInput(target = window) {
   const state = { left: false, right: false, jump: false };
-  const api = { state, restart: false, copy: false, consumeRestart, consumeCopy, destroy };
+  const api = {
+    state, restart: false, copy: false, mute: false,
+    consumeRestart, consumeCopy, consumeMute, destroy,
+  };
 
   function onKey(down) {
     return (e) => {
       if (e.code === 'KeyR') { if (down) api.restart = true; return; }
       if (e.code === 'KeyC') { if (down) api.copy = true; return; }
+      if (e.code === 'KeyM') { if (down) api.mute = true; return; }
       const action = KEYS[e.code];
       if (!action) return;
       e.preventDefault();
@@ -34,6 +38,11 @@ export function createInput(target = window) {
     const c = api.copy;
     api.copy = false;
     return c;
+  }
+  function consumeMute() {
+    const m = api.mute;
+    api.mute = false;
+    return m;
   }
   function destroy() {
     target.removeEventListener('keydown', kd);

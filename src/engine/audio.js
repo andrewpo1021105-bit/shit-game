@@ -35,6 +35,82 @@ export function createAudio() {
     src.start();
   }
 
+  // ── 背景音樂 ─────────────────────────────────────────────
+  // 不載任何音檔:整首曲子就是兩張音符表,用振盪器現場演奏。
+  // 陽光到近乎白目的 8-bit 循環——跟這個遊戲對你做的事
+  // 完全不成比例地快樂,而這正是重點。
+  const STEP = 0.25;             // 120 BPM 的八分音符
+  const LOOP = 32;               // 4 小節一循環
+  // C 大調五聲音階,聽起來永遠不會錯——它騙你的方式跟關卡一樣:太友善了
+  const MELODY = [
+    523, 0, 659, 0, 784, 0, 659, 0,
+    523, 0, 440, 523, 440, 0, 392, 0,
+    330, 0, 392, 440, 523, 0, 659, 523,
+    784, 0, 659, 0, 587, 659, 523, 0,
+  ];
+  const BASS = [
+    131, 0, 0, 0, 131, 0, 98, 0,
+    110, 0, 0, 0, 110, 0, 98, 0,
+    87, 0, 0, 0, 87, 0, 98, 0,
+    98, 0, 0, 0, 98, 0, 123, 0,
+  ];
+
+  let musicOn = false;
+  let musicTimer = null;
+  let nextStep = 0;
+  let stepIdx = 0;
+
+  // 跟 tone 不同:音符要排在未來的節拍點上,不是「現在」
+  function noteAt(freq, at, dur, type, gain) {
+    const c = ensure();
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(gain, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    osc.connect(g).connect(c.destination);
+    osc.start(at);
+    osc.stop(at + dur + 0.02);
+  }
+
+  // 排程幫浦:每次醒來把接下來 0.35 秒內的節拍排上去。
+  // 用 AudioContext 的時鐘,不用 setInterval 的——後者晃得像壞掉的節拍器。
+  function pump() {
+    const c = ensure();
+    while (nextStep < c.currentTime + 0.35) {
+      const m = MELODY[stepIdx % LOOP];
+      if (m) noteAt(m, nextStep, STEP * 0.85, 'square', 0.02);
+      const b = BASS[stepIdx % LOOP];
+      if (b) noteAt(b, nextStep, STEP * 1.7, 'triangle', 0.05);
+      nextStep += STEP;
+      stepIdx += 1;
+    }
+  }
+
+  function startMusic() {
+    try {
+      if (musicOn) return;
+      const c = ensure();
+      musicOn = true;
+      nextStep = c.currentTime + 0.05;
+      stepIdx = 0;
+      pump();
+      musicTimer = setInterval(() => { try { pump(); } catch { /* 不吵 */ } }, 150);
+    } catch { /* 沒有音效環境就安靜地玩 */ }
+  }
+
+  function toggleMusic() {
+    if (musicOn) {
+      clearInterval(musicTimer);
+      musicTimer = null;
+      musicOn = false;
+    } else {
+      startMusic();
+    }
+    return musicOn;
+  }
+
   function play(name) {
     try {
       if (name === 'jump') tone(320, 620, 0.10, 'square', 0.06);
@@ -53,5 +129,5 @@ export function createAudio() {
     } catch { /* 音效失敗不該讓遊戲停下來 */ }
   }
 
-  return { play };
+  return { play, startMusic, toggleMusic };
 }

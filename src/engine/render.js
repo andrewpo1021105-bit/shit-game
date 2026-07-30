@@ -607,7 +607,7 @@ export function createRenderer(canvas) {
 
     ctx.font = '11px "Microsoft JhengHei", sans-serif';
     ctx.fillStyle = '#1d3557';
-    ctx.fillText('17 關 · 每一關都會騙你 · 計時上排行榜', VIEW_W / 2, cy + 26);
+    ctx.fillText('17 關 · 每一關都會騙你 · 計時上排行榜 · M 靜音', VIEW_W / 2, cy + 26);
 
     if (Math.floor(t * 1.6) % 2 === 0) {
       ctx.font = 'bold 12px "Microsoft JhengHei", sans-serif';
