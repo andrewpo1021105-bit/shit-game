@@ -125,16 +125,25 @@ test('addTiles 把空氣填成實心', () => {
   assert.deepEqual(world.map, ['....', '###.']);
 });
 
+// 邊界改成看實際地圖尺寸(BOSS 關 90 格寬),所以測試地圖要用真實大小
+const STD_MAP = Array(17).fill('..............................');
+
 test('moveDoor 位移門的位置', () => {
-  const world = { map: ['....'], door: { x: 5, y: 5 } };
+  const world = { map: STD_MAP.slice(), door: { x: 5, y: 5 } };
   applyAction(world, { t: 'moveDoor', x: 2, y: -1 });
   assert.deepEqual(world.door, { x: 7, y: 4 });
 });
 
 test('門逃到底就停在牆邊，不會跑出地圖', () => {
-  const world = { map: ['....'], door: { x: 26, y: 5 } };
+  const world = { map: STD_MAP.slice(), door: { x: 26, y: 5 } };
   applyAction(world, { t: 'moveDoor', x: 10, y: 0 });
   assert.equal(world.door.x, 27, '門是兩格寬，最右只能到第 27 格');
+});
+
+test('BOSS 關的寬地圖,門可以逃得更遠', () => {
+  const world = { map: Array(17).fill('.'.repeat(90)), door: { x: 80, y: 5 } };
+  applyAction(world, { t: 'moveDoor', x: 20, y: 0 });
+  assert.equal(world.door.x, 87, '90 格寬的地圖,門最右到第 87 格');
 });
 
 test('門搬走後原地塌成洞', () => {

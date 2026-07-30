@@ -15,11 +15,13 @@ import level14 from './level14.js';
 import level15 from './level15.js';
 import level16 from './level16.js';
 import level17 from './level17.js';
+import level18 from './level18.js';
 
 export const LEVELS = [
   level01, level02, level03, level04, level05, level06,
   level07, level08, level09, level10, level11, level12,
   level13, level14, level15, level16, level17,
+  level18,
 ];
 
 // 整場遊戲都畫成 Minecraft 風的 3D 方塊世界：陽光、草地、飄雲——

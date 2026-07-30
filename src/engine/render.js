@@ -33,9 +33,12 @@ const looksSolid = (ch) => ch === '#' || ch === ',';
 // 每一格實心地磚畫成一顆有草皮頂面、泥土側面的立體方塊，
 // 朝著消失點做透視延伸。假地磚跟真方塊共用同一組畫法——
 // 「看得出來的假地板就不是假地板」這條鐵則在 3D 裡也一樣。
-const VP_X = VIEW_W / 2;             // 消失點：畫面中央偏上，像稍微俯視
+// 消失點:畫面中央偏上,像稍微俯視。BOSS 關會捲軸,
+// 消失點得跟著鏡頭走,所以 X 是變數,烘焙地形前設定。
+let vpX = VIEW_W / 2;
 const VP_Y = VIEW_H * 0.34;
 const DEPTH_K = 80 / (80 + TILE);    // 方塊背面的透視縮放
+const BAKE_PAD = 32;                 // 捲軸關的地形快取,兩側多烘的邊距
 
 const MC = {
   sky: '#7fb2ff',
@@ -147,7 +150,7 @@ export function createRenderer(canvas) {
 
   // ── 3D 輔助：把前面的點往消失點推一個方塊深 ──
   function proj(px, py) {
-    return [VP_X + (px - VP_X) * DEPTH_K, VP_Y + (py - VP_Y) * DEPTH_K];
+    return [vpX + (px - vpX) * DEPTH_K, VP_Y + (py - VP_Y) * DEPTH_K];
   }
 
   function quad(ax, ay, bx, by, cx2, cy2, dx2, dy2, color) {
@@ -184,10 +187,10 @@ export function createRenderer(canvas) {
       quad(px, py + TILE, px + TILE, py + TILE, bx2, by2, bx3, by3, MC.dirtDark);
     }
     // 側面是泥土——草只長在頂面，這是那個遊戲的世界觀
-    if (airLeft && px > VP_X) {
+    if (airLeft && px > vpX) {
       quad(px, py, px, py + TILE, bx3, by3, bx0, by0, MC.dirtDark);
     }
-    if (airRight && px + TILE < VP_X) {
+    if (airRight && px + TILE < vpX) {
       quad(px + TILE, py, px + TILE, py + TILE, bx2, by2, bx1, by1, MC.dirtDark);
     }
   }
@@ -327,15 +330,22 @@ export function createRenderer(canvas) {
 
   // 3D 關卡的天空：日照、飄過的方塊雲。雲的位置由時間決定，
   // 同一秒鐘畫幾次都長一樣——渲染不得引入隨機。
-  function drawSky(world) {
-    ctx.fillStyle = MC.sky;
+  // BOSS 關換成火燒雲的黃昏:太陽變紅、雲變黑,像有什麼東西燒起來了。
+  function drawSky(world, boss = false) {
+    ctx.fillStyle = boss ? '#8a3324' : MC.sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    ctx.fillStyle = MC.sun;
+    if (boss) {
+      ctx.fillStyle = '#a8452b';
+      ctx.fillRect(0, VIEW_H * 0.45, VIEW_W, VIEW_H * 0.25);
+      ctx.fillStyle = '#c95b2e';
+      ctx.fillRect(0, VIEW_H * 0.62, VIEW_W, VIEW_H * 0.2);
+    }
+    ctx.fillStyle = boss ? '#ff5a36' : MC.sun;
     ctx.fillRect(VIEW_W - 108, 22, 26, 26);
-    ctx.fillStyle = 'rgba(255,244,170,0.55)';
+    ctx.fillStyle = boss ? 'rgba(255,120,60,0.5)' : 'rgba(255,244,170,0.55)';
     ctx.fillRect(VIEW_W - 112, 18, 34, 34);
 
-    ctx.fillStyle = MC.cloud;
+    ctx.fillStyle = boss ? 'rgba(40,18,14,0.75)' : MC.cloud;
     const drift = (world.time * 6) % (VIEW_W + 120);
     for (const [cx0, cy0, w] of [[30, 34, 52], [190, 58, 68], [330, 24, 44]]) {
       const cx1 = ((cx0 + drift) % (VIEW_W + 120)) - 60;
@@ -387,20 +397,41 @@ export function createRenderer(canvas) {
     const threeD = world.level.render3d === true;
     const map = world.map;
 
-    // 地形變了才重建快取(字串比對很便宜,510 個字元而已)
-    const key = (threeD ? '3' : '2') + map.join('');
+    // 攝影機。地圖比一個畫面寬(BOSS 關)才會捲,平常 camX 恆為 0——
+    // 人物與地磚永遠原尺寸,寬地圖靠鏡頭跟著玩家走。
+    const mapPxW = map[0].length * TILE;
+    const scroll = mapPxW > VIEW_W;
+    const camX = scroll
+      ? Math.max(0, Math.min(world.player.x + world.player.w / 2 - VIEW_W / 2, mapPxW - VIEW_W))
+      : 0;
+    // 捲軸時地形快取只烘鏡頭附近一個畫面寬(加邊距),消失點跟著鏡頭。
+    // 烘焙位置量化到 8px:每滑 8px 才重烘一次,而不是每幀。
+    const bakeX = scroll ? Math.floor(camX / 8) * 8 : 0;
+
+    // 地形變了才重建快取(字串比對很便宜)
+    const key = (threeD ? '3' : '2') + bakeX + ':' + map.join('');
     if (key !== terrainKey) {
       terrainKey = key;
+      const wantW = scroll ? VIEW_W + BAKE_PAD * 2 : VIEW_W;
+      if (terrain.width !== wantW) terrain.width = wantW;   // 改寬度順便清空
+      vpX = bakeX + VIEW_W / 2;
       ctx = tctx;
-      ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, terrain.width, VIEW_H);
+      // 之後全部用世界座標畫,由這個位移對到快取畫布上
+      ctx.setTransform(1, 0, 0, 1, -(bakeX - (scroll ? BAKE_PAD : 0)), 0);
+      const x0 = scroll ? Math.max(0, Math.floor((bakeX - BAKE_PAD) / TILE)) : 0;
+      const x1 = scroll
+        ? Math.min(map[0].length - 1, Math.ceil((bakeX + VIEW_W + BAKE_PAD) / TILE))
+        : map[0].length - 1;
       if (threeD) {
         // 兩趟畫完：先畫所有方塊往後延伸的面，再畫所有正面蓋在上面。
         // 正面永遠離鏡頭最近，所以這個順序就是正確的遮擋關係。
         for (let y = 0; y < map.length; y++)
-          for (let x = 0; x < map[y].length; x++)
+          for (let x = x0; x <= x1; x++)
             if (looksSolid(map[y][x])) drawVoxelBack(map, x, y);
         for (let y = 0; y < map.length; y++)
-          for (let x = 0; x < map[y].length; x++) {
+          for (let x = x0; x <= x1; x++) {
             const ch = map[y][x];
             // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
             if (ch === '#' || ch === ',') drawVoxelFront(map, x, y);
@@ -416,7 +447,7 @@ export function createRenderer(canvas) {
             if ((x + y) % 2 === 0) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
 
         for (let y = 0; y < map.length; y++)
-          for (let x = 0; x < map[y].length; x++) {
+          for (let x = x0; x <= x1; x++) {
             const ch = map[y][x];
             // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
             if (ch === '#' || ch === ',') drawTile(map, x, y);
@@ -424,11 +455,14 @@ export function createRenderer(canvas) {
             else if (ch === 'v') drawSpike(x, y, -1);
           }
       }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx = screenCtx;
     }
 
-    if (threeD) drawSky(world);
-    ctx.drawImage(terrain, 0, 0);
+    if (threeD) drawSky(world, world.level.boss === true);
+    // 從這裡開始的東西都活在世界座標裡,跟著鏡頭平移
+    ctx.translate(-camX, 0);
+    ctx.drawImage(terrain, bakeX - (scroll ? BAKE_PAD : 0), 0);
 
     // 過關瞬間門會亮一下再收回去
     // 假通關必須跟真通關畫得一模一樣，所以兩者共用同一條時間軸。
@@ -839,6 +873,20 @@ export function createRenderer(canvas) {
     ctx.fillStyle = C.uiHot;
     ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}`, cx, 76);
 
+    // BOSS 沒見你的原因,寫在你臉上
+    if (session.bossLocked) {
+      ctx.font = '9px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#ff8a5c';
+      ctx.fillText(
+        `BOSS 還在沉睡:總死亡 ${session.totalDeaths} > ${session.bossLocked}——死少一點再來`,
+        cx, 88,
+      );
+    } else if (session.bossCleared) {
+      ctx.font = '9px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#ffd75e';
+      ctx.fillText('⭐ BOSS 討伐成功', cx, 88);
+    }
+
     // 全球排行榜——所有人的成績都在同一張榜上,前十名攤開。
     // 雲端還在同步或斷線時,先顯示本機紀錄,狀態寫在標題旁邊。
     const board = (session.leaderboard ?? []).slice(0, 10);
@@ -867,7 +915,7 @@ export function createRenderer(canvas) {
         ctx.fillStyle = mine ? C.scan : (i === 0 ? '#ffd75e' : '#d8dae6');
         const rank = i === 0 ? '♛1' : `${i + 1}`;
         ctx.fillText(
-          `${rank}.  ${r.name ?? '匿名'}   ${fmtTime(r.time)}   死 ${r.deaths}   ${r.date}${mine ? ' ◄' : ''}`,
+          `${rank}.  ${r.boss ? '⭐' : ''}${r.name ?? '匿名'}   ${fmtTime(r.time)}   死 ${r.deaths}   ${r.date}${mine ? ' ◄' : ''}`,
           cx, y,
         );
       });

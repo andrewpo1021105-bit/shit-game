@@ -1,4 +1,4 @@
-import { TILE, MAP_W, MAP_H, DEFAULT_TUNE } from './constants.js';
+import { TILE, DEFAULT_TUNE } from './constants.js';
 import { noteRoute } from './profile.js';
 
 // 敵人的出廠設定。座標從格子換成像素,巡邏邊界也一起換算好,
@@ -152,9 +152,11 @@ export function applyAction(world, action) {
     case 'moveDoor': {
       // 門是兩格寬，夾在左右牆之間才不會逃出地圖。
       // 逃到底就無處可逃，所以「追門」永遠追得到。
+      // 邊界用實際地圖尺寸——BOSS 關比標準地圖寬三倍。
+      const mw = world.map[0].length, mh = world.map.length;
       const fromX = world.door.x, fromY = world.door.y;
-      world.door.x = Math.min(MAP_W - 3, Math.max(1, world.door.x + action.x));
-      world.door.y = Math.min(MAP_H - 4, Math.max(1, world.door.y + action.y));
+      world.door.x = Math.min(mw - 3, Math.max(1, world.door.x + action.x));
+      world.door.y = Math.min(mh - 4, Math.max(1, world.door.y + action.y));
 
       // 門搬走之後，它原本站的地方塌成一個洞——追門因此要跨坑。
       if (action.leaveHole) {
@@ -203,8 +205,8 @@ export function applyAction(world, action) {
       // 假門也會跑。這樣「哪一扇是真的」就不是背得起來的知識。
       const d = world.decoys[action.decoy ?? 0];
       if (!d) break;
-      d.x = Math.min(MAP_W - 3, Math.max(1, d.x + (action.x ?? 0)));
-      d.y = Math.min(MAP_H - 4, Math.max(1, d.y + (action.y ?? 0)));
+      d.x = Math.min(world.map[0].length - 3, Math.max(1, d.x + (action.x ?? 0)));
+      d.y = Math.min(world.map.length - 4, Math.max(1, d.y + (action.y ?? 0)));
       break;
     }
     case 'flipControls':

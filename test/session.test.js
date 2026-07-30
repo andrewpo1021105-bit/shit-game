@@ -198,3 +198,45 @@ test('創造者模式的跳關:前進、後退、都夾在合法範圍內', () =
   for (let i = 0; i < 99; i++) jumpLevel(s, 1);   // 衝過頭要停在最後一關
   assert.equal(s.index, LEVELS.length - 1);
 });
+
+// BOSS 門檻:死太多的人,第 17 關打完直接結算,見不到牠
+function tinyLevel(id, extra = {}) {
+  return {
+    id, name: '測試用',
+    tiles: [
+      '##############################',
+      ...Array(13).fill('#............................#'),
+      '##############################',
+      '##############################',
+      '##############################',
+    ],
+    spawn: [3, 13], door: [24, 12], traps: [],
+    ...extra,
+  };
+}
+
+test('死太多的人見不到 BOSS,結算畫面寫明門檻', () => {
+  const s = createSession([tinyLevel(1), tinyLevel(2, { boss: true, maxDeaths: 3 })]);
+  s.world.deaths = 5;   // 這一關就死了 5 次,超過門檻 3
+  forceWin(s);
+  run(s, CLEAR_HOLD + 0.1);
+  assert.equal(s.phase, 'finished', '門檻沒過就該直接結算');
+  assert.equal(s.bossLocked, 3, '結算要記得門檻是多少');
+  assert.equal(s.totalDeaths, 5);
+});
+
+test('死得夠少就進得了 BOSS 關', () => {
+  const s = createSession([tinyLevel(1), tinyLevel(2, { boss: true, maxDeaths: 3 })]);
+  s.world.deaths = 2;
+  forceWin(s);
+  run(s, CLEAR_HOLD + 0.1);
+  assert.equal(s.phase, 'transition', '門檻過了就照常轉場進 BOSS');
+});
+
+test('打贏 BOSS 會掛上討伐標記', () => {
+  const s = createSession([tinyLevel(1, { boss: true, maxDeaths: 9 })]);
+  forceWin(s);
+  run(s, CLEAR_HOLD + 0.1);
+  assert.equal(s.phase, 'finished');
+  assert.equal(s.bossCleared, true);
+});

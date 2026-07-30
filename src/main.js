@@ -70,6 +70,9 @@ function recordRun() {
     time: Math.round(session.totalTime * 10) / 10,
     deaths: session.totalDeaths,
     date: `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+    // 打贏 BOSS 的人,排行榜名字前面掛星——用走完 18 關的時間跟
+    // 只走 17 關的人比並不公平,這顆星就是「不公平在哪」的說明
+    boss: session.bossCleared === true,
   };
   session.lastKey = `${entry.name}|${entry.time}|${entry.deaths}`;
 
@@ -178,6 +181,8 @@ function step(dt) {
     right: input.state.right || touch.state.right,
     jump: input.state.jump || touch.state.jump,
   }, dt);
+  // BOSS 關換 BOSS 曲,回到一般關換回決鬥曲(setTrack 同曲時是空操作)
+  audio.setTrack(session.world.level.boss ? 'boss' : 'duel');
   if (session.phase === 'finished' && !recorded) {
     recorded = true;
     recordRun();

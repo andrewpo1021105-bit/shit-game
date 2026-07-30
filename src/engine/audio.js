@@ -40,21 +40,48 @@ export function createAudio() {
   // 曲風照著遊戲王決鬥 BGM 的氣氛寫的原創致敬曲:A 小調、
   // Am→F→G→E 的戲劇性走向、急促的驅動低音、鋸齒波假裝銅管——
   // 每一關都是一場決鬥,對面那個 AI 已經蓋了五張陷阱卡。
-  const STEP = 0.21;             // ~143 BPM 的八分音符,決鬥的心跳
   const LOOP = 32;               // 4 小節一循環
-  const MELODY = [
-    440, 0, 523, 0, 659, 587, 523, 0,
-    494, 0, 440, 494, 523, 0, 440, 0,
-    349, 0, 440, 0, 523, 494, 440, 0,
-    415, 0, 494, 0, 659, 0, 831, 0,
-  ];
-  // 低音幾乎不休息——決鬥中沒有人站著不動
-  const BASS = [
-    110, 110, 110, 110, 110, 110, 98, 110,
-    87, 87, 87, 87, 87, 87, 82, 87,
-    98, 98, 98, 98, 98, 98, 110, 98,
-    82, 0, 82, 82, 123, 0, 82, 82,
-  ];
+  const TRACKS = {
+    // 決鬥曲:~143 BPM,低音幾乎不休息——決鬥中沒有人站著不動
+    duel: {
+      step: 0.21,
+      lead: 'sawtooth', leadGain: 0.02, leadDur: 0.9,
+      bassType: 'square', bassGain: 0.038, bassDur: 0.95,
+      melody: [
+        440, 0, 523, 0, 659, 587, 523, 0,
+        494, 0, 440, 494, 523, 0, 440, 0,
+        349, 0, 440, 0, 523, 494, 440, 0,
+        415, 0, 494, 0, 659, 0, 831, 0,
+      ],
+      bass: [
+        110, 110, 110, 110, 110, 110, 98, 110,
+        87, 87, 87, 87, 87, 87, 82, 87,
+        98, 98, 98, 98, 98, 98, 110, 98,
+        82, 0, 82, 82, 123, 0, 82, 82,
+      ],
+    },
+    // BOSS 曲:照著鬼滅之刃「炎」的氣氛寫的原創致敬——
+    // E 小調、慢而重的長音低音、悲壯往上爬的旋律。
+    // 火燒雲下面,牠在等你。
+    boss: {
+      step: 0.3,
+      lead: 'sawtooth', leadGain: 0.024, leadDur: 1.6,
+      bassType: 'triangle', bassGain: 0.062, bassDur: 3.4,
+      melody: [
+        330, 0, 392, 440, 494, 0, 440, 392,
+        440, 0, 392, 330, 294, 0, 0, 330,
+        330, 0, 392, 440, 494, 0, 587, 523,
+        494, 523, 494, 440, 392, 0, 494, 0,
+      ],
+      bass: [
+        82, 0, 0, 0, 82, 0, 0, 0,
+        65, 0, 0, 0, 65, 0, 0, 0,
+        98, 0, 0, 0, 98, 0, 0, 0,
+        73, 0, 0, 0, 73, 0, 73, 0,
+      ],
+    },
+  };
+  let track = TRACKS.duel;
 
   let musicOn = false;
   let musicTimer = null;
@@ -80,13 +107,24 @@ export function createAudio() {
   function pump() {
     const c = ensure();
     while (nextStep < c.currentTime + 0.35) {
-      const m = MELODY[stepIdx % LOOP];
-      // 鋸齒波當主旋律,才有那種銅管吹出來的決鬥味
-      if (m) noteAt(m, nextStep, STEP * 0.9, 'sawtooth', 0.02);
-      const b = BASS[stepIdx % LOOP];
-      if (b) noteAt(b, nextStep, STEP * 0.95, 'square', 0.038);
-      nextStep += STEP;
+      const m = track.melody[stepIdx % LOOP];
+      // 鋸齒波當主旋律,才有那種銅管吹出來的味道
+      if (m) noteAt(m, nextStep, track.step * track.leadDur, track.lead, track.leadGain);
+      const b = track.bass[stepIdx % LOOP];
+      if (b) noteAt(b, nextStep, track.step * track.bassDur, track.bassType, track.bassGain);
+      nextStep += track.step;
       stepIdx += 1;
+    }
+  }
+
+  // 換曲。BOSS 關進場換 BOSS 曲,回到一般關換回來;同一首就什麼都不做。
+  function setTrack(name) {
+    const t = TRACKS[name] ?? TRACKS.duel;
+    if (t === track) return;
+    track = t;
+    stepIdx = 0;
+    if (musicOn) {
+      try { nextStep = ensure().currentTime + 0.12; } catch { /* 沒音效環境 */ }
     }
   }
 
@@ -131,5 +169,5 @@ export function createAudio() {
     } catch { /* 音效失敗不該讓遊戲停下來 */ }
   }
 
-  return { play, startMusic, toggleMusic };
+  return { play, startMusic, toggleMusic, setTrack };
 }

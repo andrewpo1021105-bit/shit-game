@@ -85,10 +85,20 @@ export function updateSession(session, input, dt) {
   updateWorld(session.world, input, dt);
 
   if (session.world.phase === 'won' && session.world.phaseTimer >= CLEAR_HOLD) {
-    if (session.index + 1 >= session.levels.length) {
-      session.totalDeaths += session.world.deaths;
+    const next = session.levels[session.index + 1];
+    const deathsSoFar = session.totalDeaths + session.world.deaths;
+
+    // BOSS 只見死得夠少的人。門檻沒過就在這裡結算——
+    // 結算畫面會告訴你牠本來願意見你的條件。
+    const bossLocked = next?.boss && deathsSoFar > next.maxDeaths;
+
+    if (!next || bossLocked) {
+      session.totalDeaths = deathsSoFar;
       session.phase = 'finished';
       session.timer = 0;
+      if (bossLocked) session.bossLocked = next.maxDeaths;
+      // 打贏 BOSS 的人,名字會掛星
+      session.bossCleared = session.world.level.boss === true;
       // 傳給朋友的東西不是死亡數，是這一份
       session.report = buildReport(session.profile);
     } else {

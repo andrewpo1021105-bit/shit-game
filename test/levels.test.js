@@ -9,7 +9,9 @@ import { isSolid, isDeadly } from '../src/game/physics.js';
 test('每關的地圖尺寸都正確', () => {
   for (const lv of LEVELS) {
     assert.equal(lv.tiles.length, MAP_H, `第 ${lv.id} 關列數錯誤`);
-    for (const row of lv.tiles) assert.equal(row.length, MAP_W, `第 ${lv.id} 關行數錯誤`);
+    // BOSS 關是三倍寬的捲軸關;其他關卡必須正好一個畫面寬
+    const wantW = lv.boss ? MAP_W * 3 : MAP_W;
+    for (const row of lv.tiles) assert.equal(row.length, wantW, `第 ${lv.id} 關行數錯誤`);
   }
 });
 
@@ -31,7 +33,7 @@ test('陷阱座標都在地圖範圍內', () => {
     for (const trap of lv.traps) {
       for (const a of trap.do) {
         if (a.w === undefined) continue;
-        assert.ok(a.x >= 0 && a.x + a.w <= MAP_W, `第 ${lv.id} 關動作超出左右邊界`);
+        assert.ok(a.x >= 0 && a.x + a.w <= lv.tiles[0].length, `第 ${lv.id} 關動作超出左右邊界`);
         assert.ok(a.y >= 0 && a.y + a.h <= MAP_H, `第 ${lv.id} 關動作超出上下邊界`);
       }
     }
@@ -116,7 +118,8 @@ test('adapt 在任意側寫輸入下產生的地形都可通關', () => {
       const where = `第 ${lv.id} 關 profile=${profile.lastLandTile}`;
 
       assert.equal(tiles.length, MAP_H, `${where}：列數跑掉`);
-      for (const row of tiles) assert.equal(row.length, MAP_W, `${where}：行數跑掉`);
+      const wantW = lv.boss ? lv.tiles[0].length : MAP_W;
+      for (const row of tiles) assert.equal(row.length, wantW, `${where}：行數跑掉`);
 
       assert.equal(isSolid(tiles, lv.spawn[0], lv.spawn[1]), false, `${where}：出生點卡在牆裡`);
       assert.equal(isSolid(tiles, lv.spawn[0], lv.spawn[1] + 1), true, `${where}：出生點懸空`);
@@ -282,7 +285,8 @@ function doorGagSignature(lv) {
 test('門前的梗不能每關都一樣', () => {
   const MAX_REPEAT = 2;
   const counts = new Map();
-  for (const lv of LEVELS) {
+  // BOSS 關是全陷阱的總復習,刻意重演前面的門前梗,不列入重複計數
+  for (const lv of LEVELS.filter((l) => !l.boss)) {
     const sig = doorGagSignature(lv);
     if (!sig) continue;
     counts.set(sig, [...(counts.get(sig) ?? []), lv.id]);
@@ -297,7 +301,8 @@ test('門前的梗不能每關都一樣', () => {
 test('沒有哪一種陷阱動作被濫用到蓋過其他所有招式', () => {
   const MAX_LEVELS_PER_ACTION = 7;
   const inLevels = new Map();
-  for (const lv of LEVELS) {
+  // BOSS 關的存在意義就是「所有招式都來一次」,不列入濫用計數
+  for (const lv of LEVELS.filter((l) => !l.boss)) {
     const built = lv.adapt ? lv.adapt(lv.tiles, createProfile(), { deaths: 0 }) : {};
     const kinds = new Set((built.traps ?? lv.traps ?? []).flatMap((t) => t.do.map((a) => a.t)));
     for (const k of kinds) inLevels.set(k, [...(inLevels.get(k) ?? []), lv.id]);
@@ -536,4 +541,38 @@ test('第 1 關在陷阱不觸發的前提下是一條直路', () => {
   for (let x = lv.spawn[0]; x <= lv.door[0]; x++) {
     assert.equal(isSolid(lv.tiles, x, row), true, `x=${x} 的地板破了，第 1 關不該一開始就有洞`);
   }
+});
+
+// BOSS 關的存在意義:所有招式都來一次。這條測試保證它名符其實——
+// 前面每一關用過的陷阱動作,BOSS 關一個都不能少(noteRoute 是
+// 側寫紀錄不是陷阱,不算)。
+test('BOSS 關包含前面所有關卡用過的每一種陷阱動作', () => {
+  const boss = LEVELS.find((l) => l.boss);
+  assert.ok(boss, '應該要有一個 BOSS 關');
+
+  const actionsOf = (lv) => {
+    const built = lv.adapt ? lv.adapt(lv.tiles, createProfile(), { deaths: 0 }) : {};
+    return (built.traps ?? lv.traps ?? []).flatMap((t) => t.do.map((a) => a.t));
+  };
+
+  const bossActions = new Set([
+    ...actionsOf(boss),
+    // deaths>0 的門前梗也算 BOSS 的武器庫
+    ...(boss.adapt(boss.tiles, createProfile(), { deaths: 1 }).traps ?? [])
+      .flatMap((t) => t.do.map((a) => a.t)),
+  ]);
+
+  const everyoneElse = new Set(
+    LEVELS.filter((l) => !l.boss).flatMap(actionsOf).filter((t) => t !== 'noteRoute'),
+  );
+
+  for (const action of everyoneElse) {
+    assert.ok(bossActions.has(action), `BOSS 關漏了「${action}」這一招`);
+  }
+});
+
+test('BOSS 關是三倍長,而且門檻寫在關卡上', () => {
+  const boss = LEVELS.find((l) => l.boss);
+  assert.equal(boss.tiles[0].length, MAP_W * 3);
+  assert.ok(typeof boss.maxDeaths === 'number' && boss.maxDeaths > 0);
 });

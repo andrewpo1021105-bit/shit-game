@@ -106,7 +106,9 @@ function updateHazards(world, dt) {
       if (isSolid(world.map, Math.floor(edge / TILE), Math.floor((h.y + h.h / 2) / TILE))) continue;
     }
 
-    if (h.y > VIEW_H + TILE || h.x < -TILE || h.x > VIEW_W + TILE) continue;
+    // 出界就消失。用實際地圖寬,BOSS 關比一個畫面寬三倍
+    const mapPxW = world.map[0].length * TILE;
+    if (h.y > VIEW_H + TILE || h.x < -TILE || h.x > mapPxW + TILE) continue;
     alive.push(h);
   }
   world.hazards = alive;

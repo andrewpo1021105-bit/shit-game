@@ -78,7 +78,9 @@ function play(level, { waitFirst, hold, lookahead }) {
   // 但不跨 play() 呼叫——每個策略都從零開始被騙。
   const known = new Set();
 
-  for (let i = 0; i < Math.round(30 / PHYSICS_DT); i++) {
+  // BOSS 關是三倍長的捲軸關,給它三倍多一點的時間額度
+  const budget = level.boss ? 120 : 30;
+  for (let i = 0; i < Math.round(budget / PHYSICS_DT); i++) {
     noticeFakes(world, known);
     // 「等一下」要用這條命的時間，死了之後要重新等
     const idle = waitFirst && world.time < 3.6;
