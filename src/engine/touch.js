@@ -7,6 +7,7 @@ export const ZONES = {
   left: { x: 6, y: 198, w: 54, h: 66 },
   right: { x: 68, y: 198, w: 54, h: 66 },
   jump: { x: 396, y: 192, w: 76, h: 72 },
+  attack: { x: 330, y: 204, w: 56, h: 60 },   // 撿到劍之後才會亮出來
   restart: { x: 222, y: 240, w: 36, h: 26 },
   mute: { x: 444, y: 18, w: 30, h: 22 },
 };
@@ -18,7 +19,7 @@ export const ASK = {
 };
 
 export function createTouch(canvas, onTap) {
-  const state = { left: false, right: false, jump: false };
+  const state = { left: false, right: false, jump: false, attack: false };
   const api = {
     state,
     enabled: false,        // 選了「手機/平板」才會開
@@ -58,10 +59,11 @@ export function createTouch(canvas, onTap) {
     state.left = false;
     state.right = false;
     state.jump = false;
+    state.attack = false;
     api.pressed = {};
     for (const z of pointers.values()) {
       if (!z) continue;
-      if (z === 'left' || z === 'right' || z === 'jump') state[z] = true;
+      if (z === 'left' || z === 'right' || z === 'jump' || z === 'attack') state[z] = true;
       api.pressed[z] = true;
     }
   }

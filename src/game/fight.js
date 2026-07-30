@@ -1,0 +1,261 @@
+import { createPlayer, updatePlayer } from './player.js';
+import { TILE, RESPAWN_DELAY, DEFAULT_TUNE } from './constants.js';
+
+// 打鬥模式。打贏第 18 關的人撿起一把劍,走進這個房間——
+// 從這裡開始它不再是整人遊戲,是一場正面對決:
+// 一隻龍,三種招式,全部有預備動作、全部躲得掉、全部確定性。
+// 招式的節奏照著快打旋風的文法寫:飛行道具(火球)、
+// 蓄力突進(低身衝撞)、還有懲罰貼臉亂摸的近身尾擊。
+
+// 競技場:一個畫面大的空房間。這裡唯一的機關就是牠。
+const ROOM = [
+  '##############################',
+  ...Array(13).fill('#............................#'),
+  '##############################',
+  '##############################',
+  '##############################',
+];
+
+// 給渲染器認的關卡殼。不進 LEVELS——它不是平台關卡,規則測試管不到它。
+export const FIGHT_LEVEL = {
+  id: 19,
+  name: '牠',
+  render3d: true,
+  boss: true,
+  tiles: ROOM,
+  spawn: [3, 13],
+  door: [-9, -9],   // 沒有門。這一戰打贏才算出口。
+  traps: [],
+};
+
+const FLOOR_Y = 14 * TILE;          // 地板頂面
+const DRAGON_W = 76;
+const DRAGON_H = 44;
+const DRAGON_FLAT = 24;             // 衝撞時壓低的高度——跳得過去,這是活路
+const CHARGE_SPEED = 250;
+const FIREBALL_SPEED = 150;
+const SLASH_CD = 0.42;              // 劍的冷卻:不是按越快越強
+const SLASH_TIME = 0.16;
+const DRAGON_HP = 16;
+
+export function createFight() {
+  return {
+    // world 形狀的殼,drawWorld 直接吃得下
+    level: FIGHT_LEVEL,
+    map: ROOM.slice(),
+    player: createPlayer(3, 13),
+    door: { x: -9, y: -9 },
+    decoys: [],
+    enemies: [],
+    hazards: [],      // 龍的火球放這裡,渲染共用 drawHazard
+    glitch: null,
+    flipped: false,
+    doorLock: 0,
+    fakeKind: null,
+    time: 0,
+    phase: 'play',    // 'play' | 'dying'
+    phaseTimer: 0,
+    deaths: 0,
+    events: [],
+
+    // 劍
+    slash: 0,
+    slashCd: 0,
+
+    // 牠
+    dragon: {
+      x: 20 * TILE,
+      y: FLOOR_Y - DRAGON_H,
+      w: DRAGON_W,
+      h: DRAGON_H,
+      homeX: 20 * TILE,
+      hp: DRAGON_HP,
+      maxHp: DRAGON_HP,
+      face: -1,
+      state: 'rest',   // rest → aim → fire ×3 → rest → crouch → charge → tired → …
+      t: 0,
+      cycle: 0,
+      fired: 0,
+      flash: 0,        // 挨刀的白閃
+      swipeT: -1,      // 近身尾擊的計時(-1 = 沒在揮)
+    },
+
+    won: false,
+    wonT: 0,
+    done: false,
+  };
+}
+
+const overlap = (a, b) =>
+  a.x + a.w > b.x && a.x < b.x + b.w && a.y + a.h > b.y && a.y < b.y + b.h;
+
+function dragonBox(d) {
+  // 衝撞時壓低身體貼地滑——留出跳過去的空間,這一招才是招式而不是牆
+  if (d.state === 'charge') return { x: d.x, y: FLOOR_Y - DRAGON_FLAT, w: d.w, h: DRAGON_FLAT };
+  return { x: d.x, y: d.y, w: d.w, h: d.h };
+}
+
+function die(f) {
+  if (f.phase !== 'play') return;
+  f.phase = 'dying';
+  f.phaseTimer = RESPAWN_DELAY;
+  f.deaths += 1;
+  f.events.push('death');
+}
+
+function respawn(f) {
+  f.player = createPlayer(3, 13);
+  f.hazards = [];
+  const d = f.dragon;
+  d.x = d.homeX;
+  d.state = 'rest';
+  d.t = 0;
+  d.fired = 0;
+  d.swipeT = -1;
+  // 血量保留——你的進度不會因為死亡歸零,這一戰是消耗戰
+}
+
+function spitFireball(f) {
+  const d = f.dragon;
+  f.hazards.push({
+    kind: 'fire',
+    x: d.face < 0 ? d.x - 16 : d.x + d.w + 2,
+    y: FLOOR_Y - 14,   // 貼地飛——跳起來就躲得掉,站著不動就中
+    w: 14, h: 12,
+    vx: d.face * FIREBALL_SPEED,
+  });
+  f.events.push('spike');
+}
+
+function updateDragon(f, dt) {
+  const d = f.dragon;
+  const p = f.player;
+  d.t += dt;
+  d.flash = Math.max(0, d.flash - dt);
+  d.face = p.x + p.w / 2 < d.x + d.w / 2 ? -1 : 1;
+
+  // 近身尾擊:休息時貼牠太近,牠會用尾巴教你什麼叫距離管理。
+  // 0.4 秒預備、0.2 秒判定——看得見,退得開。
+  if (d.swipeT >= 0) {
+    d.swipeT += dt;
+    if (d.swipeT >= 0.4 && d.swipeT < 0.6) {
+      const reach = {
+        x: d.face < 0 ? d.x - 30 : d.x + d.w,
+        y: d.y + d.h - 30,
+        w: 30, h: 30,
+      };
+      if (overlap(reach, p)) { die(f); return; }
+    }
+    if (d.swipeT >= 0.6) d.swipeT = -1;
+    return;   // 揮尾巴的時候不做別的事
+  }
+
+  switch (d.state) {
+    case 'rest':
+      if ((d.state === 'rest') && d.t >= 1.3) {
+        d.state = d.cycle % 2 === 0 ? 'aim' : 'crouch';
+        d.cycle += 1;
+        d.t = 0;
+        d.fired = 0;
+        f.events.push('roar');
+      } else if (Math.abs((p.x + p.w / 2) - (d.x + d.w / 2)) < d.w / 2 + 26 && d.swipeT < 0) {
+        d.swipeT = 0;   // 貼太近,起手尾擊
+      }
+      break;
+    case 'aim':
+      // 張嘴蓄力——這 0.7 秒就是「要吐火了」的告示
+      if (d.t >= 0.7) { d.state = 'fire'; d.t = 0; }
+      break;
+    case 'fire':
+      // 三發,固定節奏。像那個蹲在畫面另一端丟波動拳的人。
+      if (d.fired < 3 && d.t >= 0.2 + d.fired * 0.9) {
+        spitFireball(f);
+        d.fired += 1;
+      }
+      if (d.t >= 2.4) { d.state = 'rest'; d.t = 0; }
+      break;
+    case 'crouch':
+      // 壓低身體——這 0.8 秒是「要衝過來了」的告示
+      if (d.t >= 0.8) { d.state = 'charge'; d.t = 0; d.chargeDir = d.face; }
+      break;
+    case 'charge': {
+      d.x += d.chargeDir * CHARGE_SPEED * dt;
+      const leftWall = TILE, rightWall = 29 * TILE - d.w;
+      if (d.x <= leftWall || d.x >= rightWall) {
+        d.x = Math.max(leftWall, Math.min(d.x, rightWall));
+        d.state = 'tired';
+        d.t = 0;
+        f.events.push('thud');
+      }
+      if (overlap(dragonBox(d), p)) { die(f); return; }
+      break;
+    }
+    case 'tired':
+      // 撞完牆會喘。這 2.2 秒就是你的回合。
+      if (d.t >= 2.2) { d.state = 'rest'; d.t = 0; }
+      break;
+    default:
+      break;
+  }
+}
+
+export function updateFight(f, input, dt) {
+  f.events = [];
+  if (f.done) return;
+  f.time += dt;
+
+  // 勝利演出:牠倒下,慢慢沉進地板
+  if (f.won) {
+    f.wonT += dt;
+    f.dragon.y += 14 * dt;
+    if (f.wonT >= 2.4) f.done = true;
+    return;
+  }
+
+  if (f.phase === 'dying') {
+    f.phaseTimer -= dt;
+    if (f.phaseTimer <= 0) { f.phase = 'play'; respawn(f); }
+    return;
+  }
+
+  updatePlayer(f.player, f.map, input, dt, DEFAULT_TUNE);
+
+  // 劍。有冷卻——這是節奏遊戲,不是滑鼠連點測試。
+  f.slashCd = Math.max(0, f.slashCd - dt);
+  f.slash = Math.max(0, f.slash - dt);
+  if (input.attack && f.slashCd <= 0) {
+    f.slash = SLASH_TIME;
+    f.slashCd = SLASH_CD;
+    f.events.push('swing');
+    const p = f.player;
+    const blade = {
+      x: p.facing < 0 ? p.x - 26 : p.x + p.w,
+      y: p.y - 6,
+      w: 26, h: 26,
+    };
+    if (overlap(blade, dragonBox(f.dragon))) {
+      f.dragon.hp -= 1;
+      f.dragon.flash = 0.22;
+      f.events.push('hit');
+      if (f.dragon.hp <= 0) {
+        f.won = true;
+        f.events.push('win');
+        return;
+      }
+    }
+  }
+
+  updateDragon(f, dt);
+  if (f.phase !== 'play') return;   // 尾擊或衝撞已經處理掉這條命
+
+  // 火球飛行與命中
+  const alive = [];
+  for (const h of f.hazards) {
+    h.x += h.vx * dt;
+    if (h.x > TILE && h.x + h.w < 29 * TILE) alive.push(h);
+  }
+  f.hazards = alive;
+  for (const h of f.hazards) {
+    if (overlap(h, f.player)) { die(f); return; }
+  }
+}

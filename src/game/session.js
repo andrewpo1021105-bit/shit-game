@@ -1,5 +1,6 @@
 import { createProfile, describeProfile, buildReport } from './profile.js';
 import { createWorld, updateWorld, resetLevel } from './world.js';
+import { createFight, updateFight } from './fight.js';
 
 // 轉場時間軸（秒）
 export const CLEAR_HOLD = 1.4;        // CLEAR! 畫面停留多久才開始轉場
@@ -66,17 +67,40 @@ export function updateSession(session, input, dt) {
     session.timer += dt;
     // 不清掉的話 world.events 會停在最後一幀的 'win'，主迴圈會每幀重播勝利音效
     session.world.events = [];
+    if (session.fight) session.fight.events = [];
     return;
   }
 
   if (session.phase === 'transition') {
     session.timer += dt;
     session.world.events = [];
-    // 黑幕蓋滿之後才換關，玩家不會看到關卡憑空跳掉
-    if (!session.revealed && session.timer >= REVEAL_AT) reveal(session);
+    // 黑幕蓋滿之後才換關，玩家不會看到關卡憑空跳掉。
+    // 撿了劍的人,黑幕掀開之後是 BOSS 房,不是下一關。
+    if (!session.revealed && session.timer >= REVEAL_AT) {
+      if (session.pendingFight) {
+        session.fight = createFight();
+        session.revealed = true;
+      } else {
+        reveal(session);
+      }
+    }
     if (session.timer >= TRANSITION_TIME) {
-      session.phase = 'play';
+      session.phase = session.pendingFight ? 'fight' : 'play';
       session.timer = 0;
+    }
+    return;
+  }
+
+  // 打鬥模式。整個遊戲在這裡換了文法:沒有陷阱,只有牠。
+  if (session.phase === 'fight') {
+    session.totalTime += dt;
+    updateFight(session.fight, input, dt);
+    if (session.fight.done) {
+      session.totalDeaths += session.fight.deaths;
+      session.phase = 'finished';
+      session.timer = 0;
+      session.bossCleared = true;   // 屠龍者,排行榜掛星
+      session.report = buildReport(session.profile);
     }
     return;
   }
@@ -92,13 +116,17 @@ export function updateSession(session, input, dt) {
     // 結算畫面會告訴你牠本來願意見你的條件。
     const bossLocked = next?.boss && deathsSoFar > next.maxDeaths;
 
-    if (!next || bossLocked) {
+    if (session.world.level.boss) {
+      // 走完 BOSS 關的人撿起一把劍。黑幕掀開,遊戲變成打鬥遊戲。
+      session.totalDeaths = deathsSoFar;
+      session.pendingFight = true;
+      beginTransition(session);
+      session.analysis = '你撿起了一把劍';
+    } else if (!next || bossLocked) {
       session.totalDeaths = deathsSoFar;
       session.phase = 'finished';
       session.timer = 0;
       if (bossLocked) session.bossLocked = next.maxDeaths;
-      // 打贏 BOSS 的人,名字會掛星
-      session.bossCleared = session.world.level.boss === true;
       // 傳給朋友的東西不是死亡數，是這一份
       session.report = buildReport(session.profile);
     } else {

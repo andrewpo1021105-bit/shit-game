@@ -2,10 +2,12 @@ const KEYS = {
   ArrowLeft: 'left', KeyA: 'left',
   ArrowRight: 'right', KeyD: 'right',
   Space: 'jump', ArrowUp: 'jump', KeyW: 'jump',
+  // 攻擊鍵。撿到劍之前按了什麼事都不會發生
+  KeyJ: 'attack', KeyK: 'attack', KeyX: 'attack',
 };
 
 export function createInput(target = window) {
-  const state = { left: false, right: false, jump: false };
+  const state = { left: false, right: false, jump: false, attack: false };
   const api = {
     state, restart: false, copy: false, mute: false, next: false, back: false,
     consumeRestart, consumeCopy, consumeMute, consumeNext, consumeBack, destroy,
@@ -26,7 +28,7 @@ export function createInput(target = window) {
     };
   }
   const kd = onKey(true), ku = onKey(false);
-  const blur = () => { state.left = state.right = state.jump = false; };
+  const blur = () => { state.left = state.right = state.jump = state.attack = false; };
 
   target.addEventListener('keydown', kd);
   target.addEventListener('keyup', ku);

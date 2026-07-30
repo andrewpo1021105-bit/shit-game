@@ -127,6 +127,16 @@ export function createRenderer(canvas) {
       ctx.fillRect(px + 1, py + 1, h.w - 2, 2);
       return;
     }
+    if (h.kind === 'fire') {
+      // 龍吐的火球:橙心黃邊,尾巴拖一截火
+      ctx.fillStyle = '#ff8a2a';
+      ctx.fillRect(px, py, h.w, h.h);
+      ctx.fillStyle = '#ffd75e';
+      ctx.fillRect(px + 3, py + 3, h.w - 6, h.h - 6);
+      ctx.fillStyle = 'rgba(255,110,40,0.6)';
+      ctx.fillRect(h.vx < 0 ? px + h.w : px - 8, py + 3, 8, h.h - 6);
+      return;
+    }
     if (h.kind === 'block') {
       ctx.fillStyle = '#6b4a2a';
       ctx.fillRect(px, py, h.w, h.h);
@@ -702,7 +712,8 @@ export function createRenderer(canvas) {
   }
 
   // 遊戲中的觸控按鈕。半透明壓在畫面上,壓到的那顆會亮。
-  function drawTouchButtons(touch) {
+  // showAtk:撿到劍(打鬥模式)才亮出攻擊鈕。
+  function drawTouchButtons(touch, showAtk = false) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const btn = (z, hot) => {
       ctx.fillStyle = hot ? 'rgba(255,215,94,0.30)' : 'rgba(5,6,10,0.30)';
@@ -736,7 +747,106 @@ export function createRenderer(canvas) {
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText('R', ZONES.restart.x + ZONES.restart.w / 2, ZONES.restart.y + 17);
     ctx.fillText('♪', ZONES.mute.x + ZONES.mute.w / 2, ZONES.mute.y + 15);
+    if (showAtk) {
+      btn(ZONES.attack, touch.pressed.attack);
+      ctx.font = 'bold 16px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = touch.pressed.attack ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.6)';
+      ctx.fillText('⚔', ZONES.attack.x + ZONES.attack.w / 2, ZONES.attack.y + 36);
+    }
     ctx.textAlign = 'left';
+  }
+
+  // ── 龍 ────────────────────────────────────────────────
+  // 方塊拼的巨龍。狀態全寫在姿勢上:張嘴=要吐火、壓低=要衝、
+  // 喘氣=你的回合。快打旋風的規矩:每一招都先講,躲不掉是你的事。
+  function drawDragon(d, won, wonT) {
+    const flat = d.state === 'charge';
+    const x = Math.round(d.x);
+    const h = flat ? 24 : d.h;
+    const y = Math.round(flat ? 14 * TILE - 24 : d.y);
+    const dir = d.face;
+    const alpha = won ? Math.max(0.15, 1 - wonT * 0.4) : 1;
+    ctx.globalAlpha = alpha;
+
+    // 身體
+    ctx.fillStyle = d.flash > 0 ? '#ffe0d0' : '#8a2321';
+    ctx.fillRect(x, y, d.w, h);
+    ctx.fillStyle = d.flash > 0 ? '#ffc9b0' : '#6d1a19';
+    ctx.fillRect(x, y, d.w, 6);
+    // 肚皮
+    ctx.fillStyle = '#d8b26a';
+    ctx.fillRect(x + 6, y + h - 8, d.w - 12, 6);
+    // 背刺
+    ctx.fillStyle = '#3a0f0f';
+    for (let i = 0; i < 5; i++) tri(x + 8 + i * 14, y, x + 18 + i * 14, y, x + 13 + i * 14, y - (flat ? 4 : 9), '#3a0f0f');
+    // 翅膀(衝撞時收起來)
+    if (!flat) {
+      tri(x + d.w / 2, y + 4, x + d.w / 2 - 26, y - 20, x + d.w / 2 - 4, y + 2, '#5c1414');
+      tri(x + d.w / 2 + 4, y + 4, x + d.w / 2 + 28, y - 18, x + d.w / 2 + 8, y + 2, '#4a1010');
+    }
+    // 頭(朝著玩家)
+    const hx = dir < 0 ? x - 22 : x + d.w - 2;
+    const hy = y - (flat ? 0 : 8);
+    ctx.fillStyle = d.flash > 0 ? '#ffe0d0' : '#8a2321';
+    ctx.fillRect(hx, hy, 24, 18);
+    // 角
+    ctx.fillStyle = '#e8e0d0';
+    ctx.fillRect(dir < 0 ? hx + 16 : hx + 4, hy - 6, 4, 7);
+    // 眼睛:喘氣時閉眼,平常黃燈
+    ctx.fillStyle = d.state === 'tired' ? '#555' : '#ffd75e';
+    ctx.fillRect(dir < 0 ? hx + 4 : hx + 15, hy + 4, 5, 4);
+    // 嘴:蓄力吐火時張開,露出火光
+    const mouthOpen = d.state === 'aim' || d.state === 'fire' || d.swipeT >= 0;
+    ctx.fillStyle = mouthOpen ? '#ff8a2a' : '#3a0f0f';
+    ctx.fillRect(dir < 0 ? hx - 2 : hx + 16, hy + 11, 10, mouthOpen ? 7 : 3);
+    // 尾巴(在頭的反向);尾擊預備時翹起來
+    const tx0 = dir < 0 ? x + d.w : x;
+    const swipeUp = d.swipeT >= 0 && d.swipeT < 0.4;
+    tri(tx0, y + h - 12, tx0 + (dir < 0 ? 26 : -26), swipeUp ? y - 10 : y + h - 26, tx0, y + h - 2, '#6d1a19');
+
+    ctx.globalAlpha = 1;
+  }
+
+  // 打鬥模式的外掛層:龍、劍光、HP 條、勝負字樣。
+  // 場地本身還是 drawWorld 畫的——同一個世界,換了文法。
+  function drawFightLayer(f) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawDragon(f.dragon, f.won, f.wonT);
+
+    // 劍光:一道白弧,只亮 0.16 秒——揮劍是承諾,不是裝飾
+    if (f.slash > 0 && f.phase === 'play') {
+      const p = f.player;
+      const dir = p.facing < 0 ? -1 : 1;
+      const sx = dir < 0 ? p.x - 26 : p.x + p.w;
+      ctx.globalAlpha = Math.min(1, f.slash / 0.16 + 0.2);
+      tri(sx + (dir < 0 ? 26 : 0), p.y - 8, sx + (dir < 0 ? 26 : 0), p.y + 20, sx + (dir < 0 ? 0 : 26), p.y + 6, '#f4f7ff');
+      ctx.globalAlpha = 1;
+    }
+
+    // 牠的血條。沒有名字,就一個「牠」字——你們已經不需要自我介紹了。
+    const bw = 180, bx = (VIEW_W - bw) / 2, by = 22;
+    ctx.fillStyle = 'rgba(5,6,10,0.6)';
+    ctx.fillRect(bx - 20, by - 8, bw + 40, 18);
+    ctx.fillStyle = '#2a2f45';
+    ctx.fillRect(bx, by, bw, 6);
+    ctx.fillStyle = '#e04b4b';
+    ctx.fillRect(bx, by, bw * Math.max(0, f.dragon.hp) / f.dragon.maxHp, 6);
+    ctx.font = '9px "Microsoft JhengHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd75e';
+    ctx.fillText('牠', bx - 10, by + 6);
+    ctx.textAlign = 'left';
+
+    if (f.won) {
+      ctx.textAlign = 'center';
+      const pop = clamp01(f.wonT / 0.3);
+      ctx.font = `bold ${Math.round(10 + 18 * pop)}px "Microsoft JhengHei", sans-serif`;
+      ctx.fillStyle = '#3a2c05';
+      ctx.fillText('屠 龍 成 功', VIEW_W / 2 + 2, VIEW_H / 2 + 2);
+      ctx.fillStyle = '#ffd75e';
+      ctx.fillText('屠 龍 成 功', VIEW_W / 2, VIEW_H / 2);
+      ctx.textAlign = 'left';
+    }
   }
 
   // 開場畫面。陽光草地、被殭屍追著跑的方塊人——看起來是快樂遊戲,
@@ -814,12 +924,25 @@ export function createRenderer(canvas) {
     // 現在只報下一關的編號,有狠話要放的關卡(announce)照樣放。
     if (t < SWEEP_IN || t >= REVEAL_AT) return;
 
+    const cx = VIEW_W / 2, cy = VIEW_H / 2;
+    ctx.textAlign = 'center';
+
+    // 撿劍轉場:不報關卡編號了,報武器
+    if (session.pendingFight) {
+      const pop2 = clamp01((t - SWEEP_IN) / 0.3);
+      ctx.font = `bold ${Math.round(10 + 10 * pop2)}px "Microsoft JhengHei", sans-serif`;
+      ctx.fillStyle = '#ffd75e';
+      ctx.fillText('⚔ 你撿起了一把劍', cx, cy - 6);
+      ctx.font = '11px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#e04b4b';
+      ctx.fillText(typed('J / X 揮劍。牠在等你。', t, SWEEP_IN + 0.3, 0.5), cx, cy + 16);
+      ctx.textAlign = 'left';
+      return;
+    }
+
     const next = session.revealed
       ? session.world.level
       : (session.levels[session.index + 1] ?? session.world.level);
-
-    const cx = VIEW_W / 2, cy = VIEW_H / 2;
-    ctx.textAlign = 'center';
 
     const pop = clamp01((t - SWEEP_IN) / 0.3);
     ctx.font = `bold ${Math.round(10 + 14 * pop)}px Consolas, monospace`;
@@ -931,6 +1054,15 @@ export function createRenderer(canvas) {
 
   function draw(session, shake) {
     if (session.phase === 'finished') { drawFinished(session); return; }
+    // 打鬥模式:fight 物件長得跟 world 一樣,場地直接用 drawWorld 畫,
+    // 龍、劍光跟血條疊在上面。
+    if (session.phase === 'fight') {
+      session.fight.hudTime = session.totalTime;
+      session.fight.creator = session.world.creator;
+      drawWorld(session.fight, shake);
+      drawFightLayer(session.fight);
+      return;
+    }
     // 計時器是 session 的東西,每幀塞給 world 帶進去畫——
     // drawWorld 不必認識 session
     session.world.hudTime = session.totalTime;

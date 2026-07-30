@@ -180,14 +180,17 @@ function step(dt) {
     left: input.state.left || touch.state.left,
     right: input.state.right || touch.state.right,
     jump: input.state.jump || touch.state.jump,
+    attack: input.state.attack || touch.state.attack,
   }, dt);
-  // BOSS 關換 BOSS 曲,回到一般關換回決鬥曲(setTrack 同曲時是空操作)
-  audio.setTrack(session.world.level.boss ? 'boss' : 'duel');
+  // BOSS 關與屠龍戰用 BOSS 曲,回到一般關換回決鬥曲(setTrack 同曲時是空操作)
+  audio.setTrack(session.world.level.boss || session.phase === 'fight' ? 'boss' : 'duel');
   if (session.phase === 'finished' && !recorded) {
     recorded = true;
     recordRun();
   }
-  for (const e of session.world.events) {
+  // 打鬥模式的事件從 fight 出,平常從 world 出
+  const events = session.phase === 'fight' ? session.fight.events : session.world.events;
+  for (const e of events) {
     audio.play(e);
     if (e === 'death') shake = 5;
     if (e === 'spike') shake = 3;
@@ -195,6 +198,9 @@ function step(dt) {
     if (e === 'flip') shake = 6;
     if (e === 'lock') shake = 3;
     if (e === 'glitch') shake = 7;
+    if (e === 'swing') shake = 1;
+    if (e === 'hit') shake = 3;
+    if (e === 'roar') shake = 5;
   }
   shake = Math.max(0, shake - dt * 20);
 }
@@ -204,7 +210,9 @@ function render() {
   if (!started) { renderer.drawIntro(introT, creatorMode, mobileMode); return; }
   session.world.creator = creatorMode;   // HUD 要畫創造者徽章
   renderer.draw(session, shake);
-  if (mobileMode && session.phase !== 'finished') renderer.drawTouchButtons(touch);
+  if (mobileMode && session.phase !== 'finished') {
+    renderer.drawTouchButtons(touch, session.phase === 'fight');
+  }
 }
 
 startLoop(step, render, PHYSICS_DT);

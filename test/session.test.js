@@ -233,10 +233,29 @@ test('死得夠少就進得了 BOSS 關', () => {
   assert.equal(s.phase, 'transition', '門檻過了就照常轉場進 BOSS');
 });
 
-test('打贏 BOSS 會掛上討伐標記', () => {
+test('走完 BOSS 關會撿到劍,黑幕掀開後是屠龍戰', () => {
   const s = createSession([tinyLevel(1, { boss: true, maxDeaths: 9 })]);
   forceWin(s);
   run(s, CLEAR_HOLD + 0.1);
+  assert.equal(s.phase, 'transition');
+  assert.equal(s.pendingFight, true, '應該在撿劍轉場');
+  assert.equal(s.analysis, '你撿起了一把劍');
+  run(s, TRANSITION_TIME + 0.1);
+  assert.equal(s.phase, 'fight', '轉場結束進打鬥模式');
+  assert.ok(s.fight, '要有打鬥世界');
+  assert.equal(s.fight.dragon.hp, s.fight.dragon.maxHp);
+});
+
+test('屠龍成功才結算,而且掛上討伐標記', () => {
+  const s = createSession([tinyLevel(1, { boss: true, maxDeaths: 9 })]);
+  forceWin(s);
+  run(s, CLEAR_HOLD + TRANSITION_TIME + 0.2);
+  assert.equal(s.phase, 'fight');
+  // 直接宣告勝利,跑完倒下動畫
+  s.fight.won = true;
+  s.fight.deaths = 2;
+  run(s, 3);
   assert.equal(s.phase, 'finished');
   assert.equal(s.bossCleared, true);
+  assert.equal(s.totalDeaths, 2, '打鬥中的死亡要算進總數');
 });
