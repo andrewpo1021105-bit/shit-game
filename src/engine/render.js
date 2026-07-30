@@ -20,6 +20,29 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 // 連頂端亮邊的判斷都要一致——看得出來的假地板就不是假地板。
 const looksSolid = (ch) => ch === '#' || ch === ',';
 
+// ─── 第 1 關的 Minecraft 風 3D 渲染 ──────────────────────────────
+// 遊戲邏輯完全是 2D 的（物理、碰撞、陷阱一個位元都沒變），只有畫法變了：
+// 每一格實心地磚畫成一顆有草皮頂面、泥土側面的立體方塊，
+// 朝著消失點做透視延伸。假地磚跟真方塊共用同一組畫法——
+// 「看得出來的假地板就不是假地板」這條鐵則在 3D 裡也一樣。
+const VP_X = VIEW_W / 2;             // 消失點：畫面中央偏上，像稍微俯視
+const VP_Y = VIEW_H * 0.34;
+const DEPTH_K = 80 / (80 + TILE);    // 方塊背面的透視縮放
+
+const MC = {
+  sky: '#7fb2ff',
+  cloud: 'rgba(255,255,255,0.92)',
+  sun: '#ffe066',
+  grass: '#7abd4a',
+  grassEdge: '#8fd45c',
+  grassSide: '#5c9a36',
+  dirt: '#9b6b43',
+  dirtDark: '#7a5334',
+  dirtSpeck: '#835838',
+  stone: '#a9a9a9',
+  stoneDark: '#8a8a8a',
+};
+
 // 打字機：依時間推進顯示到第幾個字
 function typed(text, t, start, dur) {
   const n = Math.floor(text.length * clamp01((t - start) / dur));
@@ -93,6 +116,137 @@ export function createRenderer(canvas) {
     }
   }
 
+  // ── 3D 輔助：把前面的點往消失點推一個方塊深 ──
+  function proj(px, py) {
+    return [VP_X + (px - VP_X) * DEPTH_K, VP_Y + (py - VP_Y) * DEPTH_K];
+  }
+
+  function quad(ax, ay, bx, by, cx2, cy2, dx2, dy2, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.lineTo(cx2, cy2);
+    ctx.lineTo(dx2, dy2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 一顆方塊「往後延伸」的那幾個面。哪些面看得到由消失點決定：
+  // 方塊在消失點下方就看得到頂面、在左邊就看得到右側面——這就是透視。
+  // 面只在鄰格是空氣時才畫，被隔壁方塊貼住的面本來就不存在。
+  function drawVoxelBack(map, x, y) {
+    const px = x * TILE, py = y * TILE;
+    const airAbove = y === 0 || !looksSolid(map[y - 1][x]);
+    const airBelow = y + 1 >= map.length || !looksSolid(map[y + 1][x]);
+    const airLeft = x === 0 || !looksSolid(map[y][x - 1]);
+    const airRight = x + 1 >= map[y].length || !looksSolid(map[y][x + 1]);
+
+    const [bx0, by0] = proj(px, py);
+    const [bx1, by1] = proj(px + TILE, py);
+    const [bx2, by2] = proj(px + TILE, py + TILE);
+    const [bx3, by3] = proj(px, py + TILE);
+
+    // 頂面是草皮——只有露天的方塊會長草，跟那個遊戲一樣
+    if (airAbove && py > VP_Y) {
+      quad(px, py, px + TILE, py, bx1, by1, bx0, by0, MC.grass);
+    }
+    if (airBelow && py + TILE < VP_Y) {
+      quad(px, py + TILE, px + TILE, py + TILE, bx2, by2, bx3, by3, MC.dirtDark);
+    }
+    if (airLeft && px > VP_X) {
+      quad(px, py, px, py + TILE, bx3, by3, bx0, by0, MC.grassSide);
+    }
+    if (airRight && px + TILE < VP_X) {
+      quad(px + TILE, py, px + TILE, py + TILE, bx2, by2, bx1, by1, MC.grassSide);
+    }
+  }
+
+  // 方塊的正面：上緣一條草、其餘是帶斑點的泥土。
+  // 斑點位置用格座標決定，同一顆方塊每一幀長一樣，不會閃。
+  function drawVoxelFront(map, x, y) {
+    const px = x * TILE, py = y * TILE;
+    const airAbove = y === 0 || !looksSolid(map[y - 1][x]);
+
+    ctx.fillStyle = MC.dirt;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = MC.dirtSpeck;
+    ctx.fillRect(px + ((x * 7 + y * 3) % 10) + 2, py + ((x * 5 + y * 11) % 6) + 7, 3, 2);
+    ctx.fillRect(px + ((x * 3 + y * 13) % 11) + 1, py + ((x * 9 + y * 7) % 4) + 11, 2, 2);
+    if (airAbove) {
+      ctx.fillStyle = MC.grassSide;
+      ctx.fillRect(px, py, TILE, 5);
+      ctx.fillStyle = MC.grassEdge;
+      ctx.fillRect(px, py, TILE, 2);
+    }
+  }
+
+  // 3D 版的刺：灰石尖錐，底座跟牙齒的形狀照抄 2D 版，
+  // 只是換成石頭色再加一個往消失點的影子面——它得跟方塊活在同一個世界。
+  function drawVoxelSpike(x, y, dir) {
+    const px = x * TILE, py = y * TILE;
+    const baseY = dir > 0 ? py + 12 : py;
+    const [bx0, by0] = proj(px, baseY);
+    const [bx1, by1] = proj(px + TILE, baseY);
+    quad(px, baseY, px + TILE, baseY, bx1, by1, bx0, by0, MC.stoneDark);
+    ctx.fillStyle = '#5d5d5d';
+    ctx.fillRect(px, baseY, TILE, 4);
+    for (let tooth = 0; tooth < 2; tooth++) {
+      const cx = px + 4 + tooth * 8;
+      for (let r = 0; r < 12; r++) {
+        const w = Math.max(1, Math.round((r / 11) * 6));
+        ctx.fillStyle = r < 3 ? MC.stone : MC.stoneDark;
+        const ry = dir > 0 ? py + 12 - r : py + 3 + r;
+        ctx.fillRect(cx - Math.floor(w / 2), ry, w, 1);
+      }
+    }
+  }
+
+  // 方塊風的玩家。不是貼圖，是一個 12×16 的迷你 Steve：
+  // 棕髮、露出來的臉、青色上衣、靛藍長褲。碰撞箱跟 2D 版一模一樣。
+  function drawSteve(p, bob) {
+    const x = Math.round(p.x - 1), y = Math.round(p.y - 2) + bob;
+    ctx.fillStyle = '#e8b083';                    // 臉
+    ctx.fillRect(x + 2, y + 1, 8, 6);
+    ctx.fillStyle = '#4a2f1d';                    // 頭髮
+    ctx.fillRect(x + 2, y, 8, 2);
+    ctx.fillRect(x + (p.facing < 0 ? 8 : 2), y + 1, 2, 3);
+    ctx.fillStyle = '#ffffff';                    // 眼白
+    const ex = p.facing < 0 ? x + 3 : x + 6;
+    ctx.fillRect(ex, y + 3, 3, 2);
+    ctx.fillStyle = '#3d3aa8';                    // 眼珠看著前進方向
+    ctx.fillRect(p.facing < 0 ? ex : ex + 1, y + 3, 2, 2);
+    ctx.fillStyle = '#009e9e';                    // 上衣
+    ctx.fillRect(x + 1, y + 7, 10, 5);
+    ctx.fillStyle = '#e8b083';                    // 手
+    ctx.fillRect(x, y + 7, 2, 4);
+    ctx.fillRect(x + 10, y + 7, 2, 4);
+    ctx.fillStyle = '#3d2f8f';                    // 褲子
+    ctx.fillRect(x + 2, y + 12, 8, 3);
+    ctx.fillStyle = '#555555';                    // 鞋
+    ctx.fillRect(x + 2, y + 15, 3, 1);
+    ctx.fillRect(x + 7, y + 15, 3, 1);
+  }
+
+  // 3D 關卡的天空：日照、飄過的方塊雲。雲的位置由時間決定，
+  // 同一秒鐘畫幾次都長一樣——渲染不得引入隨機。
+  function drawSky(world) {
+    ctx.fillStyle = MC.sky;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.fillStyle = MC.sun;
+    ctx.fillRect(VIEW_W - 64, 20, 26, 26);
+    ctx.fillStyle = 'rgba(255,244,170,0.55)';
+    ctx.fillRect(VIEW_W - 68, 16, 34, 34);
+
+    ctx.fillStyle = MC.cloud;
+    const drift = (world.time * 6) % (VIEW_W + 120);
+    for (const [cx0, cy0, w] of [[30, 34, 52], [190, 58, 68], [330, 24, 44]]) {
+      const cx1 = ((cx0 + drift) % (VIEW_W + 120)) - 60;
+      ctx.fillRect(cx1, cy0, w, 10);
+      ctx.fillRect(cx1 + 8, cy0 - 6, w - 20, 6);
+    }
+  }
+
   function drawDoor(dx, dy, glow, locked = false) {
     const px = dx * TILE, py = dy * TILE;
     // 鎖住的門不發光、改罩一層紅——玩家碰上去沒反應時，
@@ -133,22 +287,41 @@ export function createRenderer(canvas) {
       );
     }
 
-    ctx.fillStyle = C.bg;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    ctx.fillStyle = C.grid;
-    for (let y = 1; y < 14; y++)
-      for (let x = 1; x < 29; x++)
-        if ((x + y) % 2 === 0) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
-
+    const threeD = world.level.render3d === true;
     const map = world.map;
-    for (let y = 0; y < map.length; y++)
-      for (let x = 0; x < map[y].length; x++) {
-        const ch = map[y][x];
-        // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
-        if (ch === '#' || ch === ',') drawTile(map, x, y);
-        else if (ch === '^' || ch === '/') drawSpike(x, y, 1);
-        else if (ch === 'v') drawSpike(x, y, -1);
-      }
+
+    if (threeD) {
+      drawSky(world);
+      // 兩趟畫完：先畫所有方塊往後延伸的面，再畫所有正面蓋在上面。
+      // 正面永遠離鏡頭最近，所以這個順序就是正確的遮擋關係。
+      for (let y = 0; y < map.length; y++)
+        for (let x = 0; x < map[y].length; x++)
+          if (looksSolid(map[y][x])) drawVoxelBack(map, x, y);
+      for (let y = 0; y < map.length; y++)
+        for (let x = 0; x < map[y].length; x++) {
+          const ch = map[y][x];
+          // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
+          if (ch === '#' || ch === ',') drawVoxelFront(map, x, y);
+          else if (ch === '^' || ch === '/') drawVoxelSpike(x, y, 1);
+          else if (ch === 'v') drawVoxelSpike(x, y, -1);
+        }
+    } else {
+      ctx.fillStyle = C.bg;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.fillStyle = C.grid;
+      for (let y = 1; y < 14; y++)
+        for (let x = 1; x < 29; x++)
+          if ((x + y) % 2 === 0) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+
+      for (let y = 0; y < map.length; y++)
+        for (let x = 0; x < map[y].length; x++) {
+          const ch = map[y][x];
+          // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
+          if (ch === '#' || ch === ',') drawTile(map, x, y);
+          else if (ch === '^' || ch === '/') drawSpike(x, y, 1);
+          else if (ch === 'v') drawSpike(x, y, -1);
+        }
+    }
 
     // 過關瞬間門會亮一下再收回去
     // 假通關必須跟真通關畫得一模一樣，所以兩者共用同一條時間軸。
@@ -169,13 +342,15 @@ export function createRenderer(canvas) {
       // 踏步：用走過的距離驅動，走得快就踏得快。每 16 像素（一格）換一次腳。
       const walking = p.grounded && Math.abs(p.vx) > 8;
       const bob = walking && Math.floor(Math.abs(p.x) / 16) % 2 === 0 ? -1 : 0;
-      ctx.drawImage(SPRITES.player, Math.round(p.x - 1), Math.round(p.y - 2) + bob);
+      if (threeD) drawSteve(p, bob);
+      else ctx.drawImage(SPRITES.player, Math.round(p.x - 1), Math.round(p.y - 2) + bob);
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.font = '8px Consolas, monospace';
     ctx.textAlign = 'left';
-    ctx.fillStyle = world.flipped ? C.uiHot : C.ui;
+    // 3D 關卡的背景是天空藍，灰紫色的 HUD 會糊掉，換成深色
+    ctx.fillStyle = world.flipped ? C.uiHot : (threeD ? '#1d3557' : C.ui);
     // HUD 也會說謊。label glitch 一旦發動，關卡編號就一路錯下去。
     const levelText = world.glitch?.kind === 'label' && world.glitch.text
       ? world.glitch.text
@@ -192,7 +367,7 @@ export function createRenderer(canvas) {
       ctx.fillText(levelText, 8, 12);
     }
     ctx.textAlign = 'right';
-    ctx.fillStyle = world.deaths > 0 ? C.uiHot : C.ui;
+    ctx.fillStyle = world.deaths > 0 ? C.uiHot : (threeD ? '#1d3557' : C.ui);
     ctx.fillText(`DEATHS ${world.deaths}`, VIEW_W - 8, 12);
     ctx.textAlign = 'left';
 
