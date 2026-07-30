@@ -154,11 +154,12 @@ export function createRenderer(canvas) {
     if (airBelow && py + TILE < VP_Y) {
       quad(px, py + TILE, px + TILE, py + TILE, bx2, by2, bx3, by3, MC.dirtDark);
     }
+    // 側面是泥土——草只長在頂面，這是那個遊戲的世界觀
     if (airLeft && px > VP_X) {
-      quad(px, py, px, py + TILE, bx3, by3, bx0, by0, MC.grassSide);
+      quad(px, py, px, py + TILE, bx3, by3, bx0, by0, MC.dirtDark);
     }
     if (airRight && px + TILE < VP_X) {
-      quad(px + TILE, py, px + TILE, py + TILE, bx2, by2, bx1, by1, MC.grassSide);
+      quad(px + TILE, py, px + TILE, py + TILE, bx2, by2, bx1, by1, MC.dirtDark);
     }
   }
 
@@ -234,9 +235,9 @@ export function createRenderer(canvas) {
     ctx.fillStyle = MC.sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     ctx.fillStyle = MC.sun;
-    ctx.fillRect(VIEW_W - 64, 20, 26, 26);
+    ctx.fillRect(VIEW_W - 108, 22, 26, 26);
     ctx.fillStyle = 'rgba(255,244,170,0.55)';
-    ctx.fillRect(VIEW_W - 68, 16, 34, 34);
+    ctx.fillRect(VIEW_W - 112, 18, 34, 34);
 
     ctx.fillStyle = MC.cloud;
     const drift = (world.time * 6) % (VIEW_W + 120);
