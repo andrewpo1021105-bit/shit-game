@@ -816,26 +816,35 @@ export function createRenderer(canvas) {
     ctx.fillStyle = C.uiHot;
     ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}`, cx, 76);
 
-    // 通關時間排行榜——放大版,前十名一次攤開。
-    // 存在你自己的瀏覽器裡:跟你比的人永遠是過去的你。
+    // 全球排行榜——所有人的成績都在同一張榜上,前十名攤開。
+    // 雲端還在同步或斷線時,先顯示本機紀錄,狀態寫在標題旁邊。
     const board = (session.leaderboard ?? []).slice(0, 10);
-    if (board.length > 0 && t > 0.5) {
+    if (t > 0.5) {
       ctx.font = 'bold 11px Consolas, monospace';
       ctx.fillStyle = '#ffd75e';
-      ctx.fillText('─────  BEST TIMES  ─────', cx, 98);
-      ctx.font = '10px Consolas, monospace';
+      ctx.fillText('─────  WORLD BEST TIMES  ─────', cx, 98);
+      if (session.boardStatus === 'loading') {
+        ctx.font = '8px "Microsoft JhengHei", sans-serif';
+        ctx.fillStyle = C.ui;
+        ctx.fillText('同步中…', cx + 140, 98);
+      } else if (session.boardStatus === 'offline') {
+        ctx.font = '8px "Microsoft JhengHei", sans-serif';
+        ctx.fillStyle = C.uiHot;
+        ctx.fillText('離線:只顯示本機紀錄', cx, 250);
+      }
+      ctx.font = '10px "Microsoft JhengHei", Consolas, monospace';
       board.forEach((r, i) => {
         if (t < 0.5 + i * 0.12) return;   // 一行一行浮出來
-        const mine = r === session.lastEntry;
+        const mine = `${r.name}|${r.time}|${r.deaths}` === session.lastKey;
         const y = 114 + i * 14;
         if (mine) {
           ctx.fillStyle = 'rgba(143,214,160,0.16)';
-          ctx.fillRect(cx - 130, y - 10, 260, 13);
+          ctx.fillRect(cx - 150, y - 10, 300, 13);
         }
         ctx.fillStyle = mine ? C.scan : (i === 0 ? '#ffd75e' : '#d8dae6');
-        const rank = i === 0 ? '♛1' : ` ${i + 1}`;
+        const rank = i === 0 ? '♛1' : `${i + 1}`;
         ctx.fillText(
-          `${rank}   ${fmtTime(r.time)}    DEATHS ${String(r.deaths).padStart(3)}    ${r.date}${mine ? ' ◄' : ''}`,
+          `${rank}.  ${r.name ?? '匿名'}   ${fmtTime(r.time)}   死 ${r.deaths}   ${r.date}${mine ? ' ◄' : ''}`,
           cx, y,
         );
       });

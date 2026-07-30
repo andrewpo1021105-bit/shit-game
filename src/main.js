@@ -7,6 +7,7 @@ import { initSprites } from './engine/sprites.js';
 import { createRenderer, fmtTime } from './engine/render.js';
 import { createAudio } from './engine/audio.js';
 import { createTouch, ASK } from './engine/touch.js';
+import { BOARD_URL } from './engine/board-url.js';
 
 // 走到這一行就代表模組載得起來。把「遊戲沒有啟動」那塊說明收掉。
 document.getElementById('boot')?.remove?.();
@@ -23,27 +24,68 @@ const audio = createAudio();
 const session = createSession(LEVELS);
 let shake = 0;
 
-// 通關時間排行榜。存在 localStorage——沒有伺服器,你的對手是過去的自己。
-// 存取只發生在這裡:邏輯模組不准碰瀏覽器 API,這是它們保持可測的代價。
+// 通關時間排行榜。全球共用一份(jsonblob),所有人的成績都上同一張榜;
+// localStorage 只當離線備援。存取只發生在這裡:
+// 邏輯模組不准碰瀏覽器 API,這是它們保持可測的代價。
 const BOARD_KEY = '搞人遊戲-排行榜';
+const NAME_KEY = '搞人遊戲-名字';
 let recorded = false;
+
+function playerName() {
+  let n = null;
+  try { n = localStorage.getItem(NAME_KEY); } catch { /* 隱私模式 */ }
+  if (!n) {
+    n = (window.prompt?.('留下名字,上全球排行榜(最多 10 個字):', '') || '匿名')
+      .trim().slice(0, 10) || '匿名';
+    try { localStorage.setItem(NAME_KEY, n); } catch { /* 認了 */ }
+  }
+  return n;
+}
+
+// 抓下來、把自己的成績塞進去、整包寫回去。
+// 兩個人同一秒寫會有一筆被蓋掉——玩具排行榜,先寫先贏,不上鎖。
+async function syncBoard(entry) {
+  const res = await fetch(BOARD_URL, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(String(res.status));
+  let list = await res.json();
+  if (!Array.isArray(list)) list = [];
+  if (entry) {
+    list.push(entry);
+    // 時間快的贏;同秒數死得少的贏
+    list.sort((a, b) => a.time - b.time || a.deaths - b.deaths);
+    list = list.slice(0, 100);
+    await fetch(BOARD_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(list),
+    });
+  }
+  return list;
+}
 
 function recordRun() {
   const now = new Date();
   const entry = {
+    name: playerName(),
     time: Math.round(session.totalTime * 10) / 10,
     deaths: session.totalDeaths,
     date: `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
   };
+  session.lastKey = `${entry.name}|${entry.time}|${entry.deaths}`;
+
+  // 本機備份照舊——雲端掛了至少還有自己的紀錄可以看
   let board = [];
   try { board = JSON.parse(localStorage.getItem(BOARD_KEY)) ?? []; } catch { /* 隱私模式沒得存 */ }
   board.push(entry);
-  // 時間快的贏;同秒數死得少的贏
   board.sort((a, b) => a.time - b.time || a.deaths - b.deaths);
   board = board.slice(0, 10);
   try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch { /* 一樣,認了 */ }
   session.leaderboard = board;
-  session.lastEntry = entry;   // entry 就在 board 裡,畫排行榜時用身分比對挑出這一筆
+  session.boardStatus = 'loading';
+
+  syncBoard(entry)
+    .then((list) => { session.leaderboard = list; session.boardStatus = 'ok'; })
+    .catch(() => { session.boardStatus = 'offline'; });
 }
 
 // 開場分三頁:先問你用什麼裝置(ask)→ 標題畫面(title)→ 遊戲。

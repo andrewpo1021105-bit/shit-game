@@ -1,0 +1,43 @@
+# 全球排行榜的保姆。jsonblob 的匿名倉庫一天沒人碰就會過期——
+# 這個排程每天去讀一次幫它續命,順手把內容備份進 repo。
+# 倉庫真的死了就開一個新的、灌回備份、改寫 board-url.js 再推上去,
+# Pages 會自動重新部署,玩家最多損失「死掉到自癒之間」的新成績。
+name: keep-leaderboard-alive
+
+on:
+  schedule:
+    - cron: '17 3 * * *'   # 每天 UTC 03:17(台灣上午 11:17)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 續命、備份,必要時自癒
+        run: |
+          set -e
+          URL=$(grep -o 'https://jsonblob.com/api/jsonBlob/[0-9a-f-]*' src/engine/board-url.js)
+          git config user.name "board-bot"
+          git config user.email "actions@github.com"
+
+          if curl -sf "$URL" -H 'Accept: application/json' -o board-backup.json; then
+            git add board-backup.json
+            git diff --cached --quiet || git commit -m "chore: 排行榜每日備份"
+            git push
+          else
+            echo "倉庫過期了,開新的並還原備份"
+            [ -s board-backup.json ] || echo '[]' > board-backup.json
+            NEW=$(curl -si -X POST https://jsonblob.com/api/jsonBlob \
+              -H 'Content-Type: application/json' --data @board-backup.json \
+              | tr -d '\r' | grep -i '^location' | grep -oE '[0-9a-f-]{36}')
+            test -n "$NEW"
+            sed -i "s|jsonBlob/[0-9a-f-]*|jsonBlob/$NEW|" src/engine/board-url.js
+            git add src/engine/board-url.js board-backup.json
+            git commit -m "fix: 排行榜倉庫過期,自動換新並還原備份"
+            git push
+          fi
