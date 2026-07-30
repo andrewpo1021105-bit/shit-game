@@ -13,8 +13,8 @@ test('一幀 60fps 推進兩步 120Hz 物理', () => {
   assert.equal(r.steps, 2);
 });
 
-test('卡頓時限制最多推進 8 步，避免死亡螺旋', () => {
+test('卡頓時限制最多推進 3 步——多了會變成玩家眼裡的瞬移', () => {
   const r = stepAccumulator(0, 5, 1 / 120);
-  assert.equal(r.steps, 8);
+  assert.equal(r.steps, 3);
   assert.equal(r.rest, 0);
 });
