@@ -155,8 +155,12 @@ function updateEnemies(world, dt) {
     } else if (e.kind === 'spitter') {
       // 砲塔不動,也不主動。它只射一種人:停在它射程裡想事情的人。
       // 一直走的人永遠不會中彈——這一關考的還是猶豫,不是手速。
+      // 而且它只守自己面向的那一側:繞到砲口後面就是安全的。
+      // 沒有這條規則,「站在門前等鎖開」跟「站在射程裡」就可能同時成立,
+      // 那是無解的死,不是整人。
       e.cool = Math.max(0, e.cool - dt);
-      const inRange = sameRow && Math.abs(px - ex) <= e.range;
+      const facing = px < ex ? -1 : 1;
+      const inRange = sameRow && facing === e.dir && Math.abs(px - ex) <= e.range;
       if (inRange && world.idle >= 0.8 && e.cool <= 0) {
         world.hazards.push({
           kind: 'spit',

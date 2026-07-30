@@ -156,3 +156,32 @@ test('假通關不會讓 session 進轉場', () => {
   assert.equal(session.phase, 'play', 'session 只認真的通關');
   assert.equal(session.index, 0, '不能因為演出就換關');
 });
+
+test('遊玩時間只在操作中累計,轉場與結算不算', () => {
+  const level = {
+    id: 96, name: '計時',
+    tiles: [
+      '##############################',
+      ...Array(13).fill('#............................#'),
+      '##############################',
+      '##############################',
+      '##############################',
+    ],
+    spawn: [3, 13], door: [24, 12], traps: [],
+  };
+  const session = createSession([level, { ...level, id: 95 }]);
+  assert.equal(session.totalTime, 0);
+  // 走 1 秒
+  for (let i = 0; i < Math.round(1 / PHYSICS_DT); i++) {
+    updateSession(session, { left: false, right: true, jump: false }, PHYSICS_DT);
+  }
+  assert.ok(Math.abs(session.totalTime - 1) < 0.02, `應累計約 1 秒,實際 ${session.totalTime}`);
+  // 手動切到轉場,時間就不該再走
+  session.phase = 'transition';
+  session.timer = 0;
+  const t0 = session.totalTime;
+  for (let i = 0; i < Math.round(0.5 / PHYSICS_DT); i++) {
+    updateSession(session, { left: false, right: false, jump: false }, PHYSICS_DT);
+  }
+  assert.equal(session.totalTime, t0, '轉場期間計時要停');
+});

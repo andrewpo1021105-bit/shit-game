@@ -16,6 +16,13 @@ const C = {
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+// 通關計時的顯示格式：m:ss.t。排行榜比的就是這個數字。
+export function fmtTime(t) {
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`;
+}
+
 // 畫面上「看起來是實心」的字元。假地板必須跟真地板共用同一組畫法，
 // 連頂端亮邊的判斷都要一致——看得出來的假地板就不是假地板。
 const looksSolid = (ch) => ch === '#' || ch === ',';
@@ -95,6 +102,14 @@ export function createRenderer(canvas) {
   // 會動的危險物。跟地形明顯不同色，玩家一眼看得出「這東西在動」。
   function drawHazard(h) {
     const px = Math.round(h.x), py = Math.round(h.y);
+    if (h.kind === 'spit') {
+      // 砲塔吐出來的東西:一小顆深綠的方塊彈
+      ctx.fillStyle = '#2f4a1e';
+      ctx.fillRect(px, py, h.w, h.h);
+      ctx.fillStyle = '#557f36';
+      ctx.fillRect(px + 1, py + 1, h.w - 2, 2);
+      return;
+    }
     if (h.kind === 'block') {
       ctx.fillStyle = '#6b4a2a';
       ctx.fillRect(px, py, h.w, h.h);
@@ -229,6 +244,52 @@ export function createRenderer(canvas) {
     ctx.fillRect(x + 7, y + 15, 3, 1);
   }
 
+  // ── 敵人 ──────────────────────────────────────────────
+  // 三種個性三種臉。全部用像素方塊拼,跟這個世界的其他東西同一種材質。
+  function drawEnemy(e) {
+    const x = Math.round(e.x), y = Math.round(e.y);
+    if (e.kind === 'walker') {
+      // 綠色方塊獸:那張臉致敬某種會爆炸的東西,但牠只會散步
+      ctx.fillStyle = '#4fae4f';
+      ctx.fillRect(x, y, e.w, e.h);
+      ctx.fillStyle = '#3c8c3c';
+      ctx.fillRect(x + 1, y + 1, 3, 2);
+      ctx.fillRect(x + 8, y + 3, 3, 2);
+      ctx.fillStyle = '#101a10';
+      ctx.fillRect(x + 2, y + 4, 3, 3);   // 眼
+      ctx.fillRect(x + 7, y + 4, 3, 3);
+      ctx.fillRect(x + 4, y + 7, 4, 4);   // 口
+      ctx.fillRect(x + 3, y + 9, 2, 3);
+      ctx.fillRect(x + 7, y + 9, 2, 3);
+      return;
+    }
+    if (e.kind === 'charger') {
+      // 殭屍:手永遠朝前伸。累倒的時候閉眼——那是牠唯一無害的時候。
+      const d = e.mode === 'dash' ? e.dashDir : e.dir;
+      ctx.fillStyle = '#5aa14a';           // 頭
+      ctx.fillRect(x + 2, y, 8, 6);
+      ctx.fillStyle = e.mode === 'tired' ? '#2f5c28' : '#0e2410';
+      ctx.fillRect(d < 0 ? x + 3 : x + 6, y + 2, 2, e.mode === 'tired' ? 1 : 2);
+      ctx.fillRect(d < 0 ? x + 6 : x + 3, y + 2, 2, e.mode === 'tired' ? 1 : 2);
+      ctx.fillStyle = '#1f6b6b';           // 衣服
+      ctx.fillRect(x + 1, y + 6, 10, 5);
+      ctx.fillStyle = '#5aa14a';           // 前伸的手
+      ctx.fillRect(d < 0 ? x - 3 : x + e.w - 1, y + 5, 4, 2);
+      ctx.fillStyle = '#28325c';           // 褲
+      ctx.fillRect(x + 2, y + 11, 8, 3);
+      return;
+    }
+    // 砲塔:石頭發射器,黑洞朝著它守的那一側
+    ctx.fillStyle = MC.stoneDark;
+    ctx.fillRect(x - 1, y, e.w + 2, e.h);
+    ctx.fillStyle = MC.stone;
+    ctx.fillRect(x, y + 1, e.w, e.h - 3);
+    ctx.fillStyle = '#4a4a4a';
+    ctx.fillRect(x + 1, y + 2, e.w - 2, 2);
+    ctx.fillStyle = '#141414';
+    ctx.fillRect(e.dir < 0 ? x : x + e.w - 5, y + 5, 5, 5);
+  }
+
   // 3D 關卡的天空：日照、飄過的方塊雲。雲的位置由時間決定，
   // 同一秒鐘畫幾次都長一樣——渲染不得引入隨機。
   function drawSky(world) {
@@ -336,6 +397,7 @@ export function createRenderer(canvas) {
     drawDoor(world.door.x, world.door.y, glow, world.doorLock > 0);
 
     for (const h of world.hazards) drawHazard(h);
+    for (const e of world.enemies ?? []) drawEnemy(e);
 
     // 死了看不到人（爆掉），過關也看不到人（走進門裡了）
     if (world.phase === 'play') {
@@ -371,6 +433,15 @@ export function createRenderer(canvas) {
     ctx.fillStyle = world.deaths > 0 ? C.uiHot : (threeD ? '#1d3557' : C.ui);
     ctx.fillText(`DEATHS ${world.deaths}`, VIEW_W - 8, 12);
     ctx.textAlign = 'left';
+
+    // 通關計時,結算畫面的排行榜比的就是它。掛在 world 上是 session
+    // 每幀塞進來的——render 不 import session,免得畫畫的人管到規則。
+    if (world.hudTime !== undefined) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = threeD ? '#1d3557' : C.ui;
+      ctx.fillText(`TIME ${fmtTime(world.hudTime)}`, VIEW_W / 2, 12);
+      ctx.textAlign = 'left';
+    }
 
     if (world.level.showProfile) drawProfilePanel(world);
     if (winLike) drawWinOverlay(world, winT);
@@ -516,7 +587,7 @@ export function createRenderer(canvas) {
 
     ctx.font = '8px Consolas, monospace';
     ctx.fillStyle = C.uiHot;
-    ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}`, VIEW_W / 2, 48);
+    ctx.fillText(`TOTAL DEATHS  ${session.totalDeaths}    TIME  ${fmtTime(session.totalTime)}`, VIEW_W / 2, 48);
 
     // 一行一行浮出來，一行 0.45 秒
     ctx.textAlign = 'left';
@@ -530,6 +601,25 @@ export function createRenderer(canvas) {
     });
 
     const done = 0.6 + lines.length * 0.45 + 0.6;
+
+    // 通關時間排行榜。存在你自己的瀏覽器裡——跟你比的人永遠是過去的你。
+    // 報告唸完才浮出來,免得跟評語搶注意力。
+    const board = session.leaderboard ?? [];
+    if (board.length > 0 && t > done - 0.4) {
+      ctx.textAlign = 'center';
+      ctx.font = '8px Consolas, monospace';
+      ctx.fillStyle = C.scan;
+      ctx.fillText('── BEST TIMES ──', VIEW_W / 2, 190);
+      board.slice(0, 5).forEach((r, i) => {
+        const mine = r === session.lastEntry;
+        ctx.fillStyle = mine ? C.scan : '#d8dae6';
+        ctx.fillText(
+          `${i + 1}.  ${fmtTime(r.time)}   DEATHS ${r.deaths}   ${r.date}${mine ? '  ◄ 這次' : ''}`,
+          VIEW_W / 2, 202 + i * 11,
+        );
+      });
+    }
+
     if (t > done && Math.floor(t * 1.5) % 2 === 0) {
       ctx.textAlign = 'center';
       ctx.font = '8px Consolas, monospace';
@@ -541,6 +631,9 @@ export function createRenderer(canvas) {
 
   function draw(session, shake) {
     if (session.phase === 'finished') { drawFinished(session); return; }
+    // 計時器是 session 的東西,每幀塞給 world 帶進去畫——
+    // drawWorld 不必認識 session
+    session.world.hudTime = session.totalTime;
     drawWorld(session.world, shake);
     if (session.phase === 'transition') drawTransition(session);
   }

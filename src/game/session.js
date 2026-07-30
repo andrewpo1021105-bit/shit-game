@@ -20,6 +20,9 @@ export function createSession(levels) {
     revealed: false,
     totalDeaths: 0,
     report: [],             // 全部跑完之後那份「它對你的評語」
+    // 通關計時。只在你操作得到的時間累計——轉場動畫不算你的,
+    // 但死亡重生、假死、假當機全都算:被騙掉的時間就是你的時間。
+    totalTime: 0,
   };
 }
 
@@ -67,6 +70,7 @@ export function updateSession(session, input, dt) {
     return;
   }
 
+  session.totalTime += dt;
   updateWorld(session.world, input, dt);
 
   if (session.world.phase === 'won' && session.world.phaseTimer >= CLEAR_HOLD) {
