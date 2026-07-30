@@ -225,16 +225,17 @@ export function createRenderer(canvas) {
 
     const base = dir > 0 ? py + 13 : py + 3;   // 刺的根部貼著石座
     const tip = dir > 0 ? py + 1 : py + 15;    // 尖端
-    // 兩根寬齒比三根細針有份量——遠看是獠牙,不是釘床
-    for (let tooth = 0; tooth < 2; tooth++) {
-      const tx = px + 1 + tooth * 7.5;
-      const mid = tx + 3.25;
+    // 四根齒、齒貼齒、鋪滿整格——相鄰的刺磚會無縫連成一整排刺,
+    // 石座也是滿版的,一排刺就是一排刺,不是幾顆牙站在那裡。
+    for (let tooth = 0; tooth < 4; tooth++) {
+      const tx = px + tooth * 4;
+      const mid = tx + 2;
       // 描邊 → 鋼身 → 右半陰影 → 尖端亮點,四層疊出立體
-      tri(tx - 0.75, base, tx + 7.25, base, mid, tip - (dir > 0 ? 1 : -1), '#2e3138');
-      tri(tx + 0.25, base, tx + 6.25, base, mid, tip, '#cfd6e4');
-      tri(mid, tip, tx + 6.25, base, mid, base, '#98a1b3');
+      tri(tx - 0.5, base, tx + 4.5, base, mid, tip - (dir > 0 ? 1 : -1), '#2e3138');
+      tri(tx + 0.5, base, tx + 3.5, base, mid, tip, '#cfd6e4');
+      tri(mid, tip, tx + 3.5, base, mid, base, '#98a1b3');
       ctx.fillStyle = '#f4f7ff';
-      ctx.fillRect(mid - 1, dir > 0 ? tip : tip - 1, 1, 2);
+      ctx.fillRect(mid - 1, dir > 0 ? tip : tip - 1, 1, 1);
     }
   }
 
