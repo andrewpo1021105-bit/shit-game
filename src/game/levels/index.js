@@ -15,3 +15,12 @@ export const LEVELS = [
   level01, level02, level03, level04, level05, level06,
   level07, level08, level09, level10, level11, level12,
 ];
+
+// 整場遊戲都畫成 Minecraft 風的 3D 方塊世界：陽光、草地、飄雲——
+// 跟關卡對你做的事形成最大的反差，這個反差本身就是整人的一部分。
+// 遊戲邏輯（物理、碰撞、陷阱）完全是 2D 的，只有畫法不一樣，
+// 所以「看得見不代表擋得住」這套規則在 3D 裡一樣成立。
+// 想讓個別關卡回到 2D 掃描線畫風，在關卡檔設 render3d: false。
+for (const lv of LEVELS) {
+  if (lv.render3d === undefined) lv.render3d = true;
+}
