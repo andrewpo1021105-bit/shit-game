@@ -37,6 +37,8 @@ const FIREBALL_SPEED = 150;
 const SLASH_CD = 0.42;              // 劍的冷卻:不是按越快越強
 const SLASH_TIME = 0.16;
 const DRAGON_HP = 16;
+const PLAYER_HP = 4;                // 格鬥遊戲的文法:被打是扣血擊退,不是秒死
+const ROUND_IN = 1.4;               // ROUND N → FIGHT! 的開場讀秒,期間雙方站樁
 
 export function createFight() {
   return {
@@ -62,6 +64,18 @@ export function createFight() {
     slash: 0,
     slashCd: 0,
 
+    // 格鬥遊戲的行頭:血量、回合、打擊停頓、無敵時間、火花、連擊
+    playerHp: PLAYER_HP,
+    maxPlayerHp: PLAYER_HP,
+    shownPlayerHp: PLAYER_HP,   // 血條殘影(SF 掉血時那截慢慢縮的紅)
+    round: 1,
+    roundT: 0,
+    hitstop: 0,                 // 命中瞬間全世界靜止一拍——打擊感的來源
+    invuln: 0,                  // 挨打後的無敵閃爍
+    spark: null,                // 命中火花 {x, y, t}
+    combo: 0,
+    comboT: 0,
+
     // 牠
     dragon: {
       x: 20 * TILE,
@@ -71,6 +85,7 @@ export function createFight() {
       homeX: 20 * TILE,
       hp: DRAGON_HP,
       maxHp: DRAGON_HP,
+      shownHp: DRAGON_HP,
       face: -1,
       state: 'rest',   // rest → aim → fire ×3 → rest → crouch → charge → tired → …
       t: 0,
@@ -103,16 +118,39 @@ function die(f) {
   f.events.push('death');
 }
 
+// 挨一下:扣血、擊退、無敵閃爍、打擊停頓——快打旋風的完整流程。
+// 血歸零才算真的倒下。
+function hurt(f, fromX) {
+  if (f.invuln > 0 || f.phase !== 'play') return;
+  f.playerHp -= 1;
+  f.hitstop = 0.12;
+  f.invuln = 1.0;
+  const p = f.player;
+  f.spark = { x: p.x + p.w / 2, y: p.y + 6, t: 0.18 };
+  // 往攻擊來源的反方向彈開
+  const dir = p.x + p.w / 2 < fromX ? -1 : 1;
+  p.vx = dir * 170;
+  p.vy = -150;
+  f.events.push('hurt');
+  if (f.playerHp <= 0) die(f);
+}
+
 function respawn(f) {
   f.player = createPlayer(3, 13);
   f.hazards = [];
+  f.playerHp = PLAYER_HP;
+  f.shownPlayerHp = PLAYER_HP;
+  f.invuln = 0;
+  f.combo = 0;
+  f.round += 1;      // 新的一命就是新的一回合,ROUND N 重新報幕
+  f.roundT = 0;
   const d = f.dragon;
   d.x = d.homeX;
   d.state = 'rest';
   d.t = 0;
   d.fired = 0;
   d.swipeT = -1;
-  // 血量保留——你的進度不會因為死亡歸零,這一戰是消耗戰
+  // 龍的血量保留——你的進度不會因為倒下歸零,這一戰是消耗戰
 }
 
 function spitFireball(f) {
@@ -144,7 +182,7 @@ function updateDragon(f, dt) {
         y: d.y + d.h - 30,
         w: 30, h: 30,
       };
-      if (overlap(reach, p)) { die(f); return; }
+      if (overlap(reach, p)) { hurt(f, d.x + d.w / 2); return; }
     }
     if (d.swipeT >= 0.6) d.swipeT = -1;
     return;   // 揮尾巴的時候不做別的事
@@ -187,7 +225,7 @@ function updateDragon(f, dt) {
         d.t = 0;
         f.events.push('thud');
       }
-      if (overlap(dragonBox(d), p)) { die(f); return; }
+      if (overlap(dragonBox(d), p)) { hurt(f, d.x + d.w / 2); return; }
       break;
     }
     case 'tired':
@@ -204,6 +242,14 @@ export function updateFight(f, input, dt) {
   if (f.done) return;
   f.time += dt;
 
+  // 血條殘影追趕(SF 掉血時慢慢縮回去的那截)
+  f.dragon.shownHp += (f.dragon.hp - f.dragon.shownHp) * Math.min(1, 4 * dt);
+  f.shownPlayerHp += (f.playerHp - f.shownPlayerHp) * Math.min(1, 4 * dt);
+  if (f.spark) {
+    f.spark.t -= dt;
+    if (f.spark.t <= 0) f.spark = null;
+  }
+
   // 勝利演出:牠倒下,慢慢沉進地板
   if (f.won) {
     f.wonT += dt;
@@ -212,11 +258,25 @@ export function updateFight(f, input, dt) {
     return;
   }
 
+  // 打擊停頓:命中的那一拍,全世界靜止。打擊感就是從這裡來的。
+  if (f.hitstop > 0) {
+    f.hitstop -= dt;
+    return;
+  }
+
   if (f.phase === 'dying') {
     f.phaseTimer -= dt;
     if (f.phaseTimer <= 0) { f.phase = 'play'; respawn(f); }
     return;
   }
+
+  // ROUND N → FIGHT! 的報幕。讀秒期間雙方站樁,這是規矩。
+  f.roundT += dt;
+  if (f.roundT < ROUND_IN) return;
+
+  if (f.invuln > 0) f.invuln -= dt;
+  f.comboT -= dt;
+  if (f.comboT <= 0) f.combo = 0;
 
   updatePlayer(f.player, f.map, input, dt, DEFAULT_TUNE);
 
@@ -236,17 +296,27 @@ export function updateFight(f, input, dt) {
     if (overlap(blade, dragonBox(f.dragon))) {
       f.dragon.hp -= 1;
       f.dragon.flash = 0.22;
+      f.hitstop = 0.09;
+      f.combo += 1;
+      f.comboT = 2.2;
+      f.spark = {
+        x: p.facing < 0 ? p.x - 14 : p.x + p.w + 14,
+        y: p.y + 4,
+        t: 0.18,
+      };
       f.events.push('hit');
       if (f.dragon.hp <= 0) {
         f.won = true;
+        f.hitstop = 0;
         f.events.push('win');
+        f.events.push('roar');
         return;
       }
     }
   }
 
   updateDragon(f, dt);
-  if (f.phase !== 'play') return;   // 尾擊或衝撞已經處理掉這條命
+  if (f.phase !== 'play') return;   // 尾擊或衝撞已經把人打倒
 
   // 火球飛行與命中
   const alive = [];
@@ -256,6 +326,6 @@ export function updateFight(f, input, dt) {
   }
   f.hazards = alive;
   for (const h of f.hazards) {
-    if (overlap(h, f.player)) { die(f); return; }
+    if (overlap(h, f.player)) { hurt(f, h.x + h.w / 2); return; }
   }
 }

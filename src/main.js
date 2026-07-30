@@ -201,6 +201,7 @@ function step(dt) {
     if (e === 'swing') shake = 1;
     if (e === 'hit') shake = 3;
     if (e === 'roar') shake = 5;
+    if (e === 'hurt') shake = 6;
   }
   shake = Math.max(0, shake - dt * 20);
 }

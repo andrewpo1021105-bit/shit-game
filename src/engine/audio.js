@@ -169,6 +169,8 @@ export function createAudio() {
       else if (name === 'hit') { noise(0.07, 0.10); tone(200, 90, 0.12, 'square', 0.09); }
       // 龍吼:低頻的轟鳴
       else if (name === 'roar') { noise(0.28, 0.09); tone(70, 45, 0.35, 'sawtooth', 0.08); }
+      // 挨打:短促的悶哼加下墜音——格鬥遊戲的受擊聲
+      else if (name === 'hurt') { noise(0.08, 0.11); tone(320, 90, 0.16, 'square', 0.08); }
       else if (name === 'win') {
         [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, f, 0.12, 'square', 0.07), i * 90));
       }
