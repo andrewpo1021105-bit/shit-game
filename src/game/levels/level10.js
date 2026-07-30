@@ -29,6 +29,16 @@ export default {
   announce: 'ANALYSIS SUSPENDED',
 
   traps: [
+    // 五、它說它停止分析了。然後 HUD 上的關卡編號變成 LEVEL 13，
+    //     而且再也不改回來。你會開始懷疑自己漏了兩關。
+    //     這是這一關唯一的謊——它確實沒有在分析你，它只是在騙你。
+    //     用 afterDelay 而不是別的觸發器，是因為 glitch 是命內狀態、
+    //     重生會被清掉；每條命重新觸發一次，玩家從頭到尾看到的才都是錯的。
+    {
+      when: { t: 'afterDelay', s: 0.1 },
+      do: [{ t: 'glitch', kind: 'label', text: 'LEVEL 13' }],
+      once: true,
+    },
     // 一、它不再學你，所以改用最粗暴的手段：左右對調。
     //     沒有預告，但有聲音、有震動，而且 HUD 的關卡編號會變成鏡像。
     //     察覺得到的人零操作難度就過得去，這是它唯一的公平性保證。
@@ -50,12 +60,26 @@ export default {
       do: [{ t: 'crumbleFromRight', y: 14, from: 27 }],
       once: true,
     },
-    // 四、碰到門的瞬間控制轉回正常，而門往上跳三格。
-    //     好不容易習慣反著按的人，會在最後一跳按錯方向。
+    // 六、你正在適應反著按——前方那一格地板無聲消失。
+    //     左右反轉加上腳下落空，是這一關唯一一次真的兩件事同時發生：
+    //     你看得到洞，但你的手還在用反的，煞車會變成加速。
+    {
+      when: { t: 'crossX', x: 14 },
+      do: [{ t: 'removeTiles', x: 18, y: 14, w: 1, h: 3 }],
+      once: true,
+    },
+    // 七、門前那一段，控制翻回正常。你剛剛才練熟反著按。
+    {
+      when: { t: 'standOn', x: 22, y: 14 },
+      do: [{ t: 'flipControls', on: false }],
+      once: true,
+    },
+    // 四、碰到門的瞬間控制再翻一次，而門往上跳三格。
+    //     第七梗剛把你翻回正常、你才走了兩格——最後這一跳又反了。
     {
       when: { t: 'touchDoor' },
       do: [
-        { t: 'flipControls', on: false },
+        { t: 'flipControls', on: true },
         { t: 'moveDoor', x: 0, y: -3 },
       ],
       once: true,

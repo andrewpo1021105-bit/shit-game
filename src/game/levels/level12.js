@@ -88,6 +88,38 @@ export default {
       once: true,
     });
 
+    // 五、洞的前面那兩格地板，從來就不是地板。
+    //     你整場遊戲都在學「看得見的東西會騙你」，
+    //     而最後一關把這件事放在你的必經之路上。
+    traps.push({
+      when: { t: 'afterDelay', s: 0.15 },
+      do: [{ t: 'fakeTiles', x: 8, y: 14, w: 2, h: 1 }],
+      once: true,
+    });
+
+    // 六、洞的對岸再過兩格，落腳處是假的——位置由你整場的速度決定，
+    //     所以每個人踩空的地方都不一樣。
+    //     跟洞刻意隔一格實地：連在一起會變成三格洞，
+    //     配上跳過洞之後就換掉的手感，那是技巧考試不是整人。
+    traps.push({
+      when: { t: 'crossX', x: start - 1 },
+      do: [{ t: 'fakeTiles', x: start + GAP_W + 2, y: 14, w: 1, h: 1 }],
+      once: true,
+    });
+
+    // 七、門前最後一段——遊戲當了 0.9 秒，錯誤訊息蓋滿畫面。
+    //     它沒有當。畫面回來的時候，半空中的門多了三扇。
+    traps.push({
+      when: { t: 'standOn', x: 22, y: 14 },
+      do: [
+        { t: 'glitch', kind: 'crash', s: 0.9 },
+        { t: 'spawnDecoy', x: 21, y: 10 },
+        { t: 'spawnDecoy', x: 27, y: 10 },
+        { t: 'spawnDecoy', x: 23, y: 6 },
+      ],
+      once: true,
+    });
+
     // 三、半空中那排門，在你走過它們底下的時候一起往門口滑過來
     traps.push({
       when: { t: 'crossX', x: 17 },
@@ -99,13 +131,16 @@ export default {
     });
 
     if (deaths === 0) {
-      // 四、整場遊戲的最後一個謊：你走到了那扇一直都在的門，伸手碰到它——
-      //     它跟半空中那些假門交換了身分。你摸到的是假的。
+      // 八、整場遊戲的最後一個謊：你走到那扇一直都在的門，伸手碰到它——
+      //     CLEAR! 跳出來了，音樂響了，你贏了。然後畫面收回去，
+      //     而你站的地方是一扇假門。
       //     只騙這一次。死過之後這個陷阱就消失，門是真的了——
       //     因為重複同一個謊就只是刁難，不是欺騙。
+      //     （fakeWin 演完自己會跟假門交換身分，所以這裡不能再放 swapDoor，
+      //     兩個一起等於同一幀換兩次，互相抵消。）
       traps.push({
         when: { t: 'touchDoor' },
-        do: [{ t: 'swapDoor', decoy: 0 }],
+        do: [{ t: 'fakeWin', s: 1.2 }],
         once: true,
       });
     } else {

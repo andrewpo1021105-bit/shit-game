@@ -72,7 +72,49 @@ export default {
       });
     }
 
-    // 四、門往上跳，順手把那扇假門拉到真門旁邊。
+    // 四、洞的對岸落腳處是假的。死幾次之後它就不會出現了——
+    //     這一關會放水，但它要你知道它放了水。
+    if (deaths < EASE_1) {
+      traps.push({
+        when: { t: 'crossX', x: 11 },
+        do: [{ t: 'fakeTiles', x: 15, y: 14, w: 1, h: 1 }],
+        once: true,
+      });
+    }
+
+    // 五、出生點右邊那兩格地板，從來就不是地板。
+    //     你已經走過它們十幾次了——在前面十一關裡。這一關的地圖
+    //     長得跟第 9、10 關幾乎一樣，而你的腳記得路。腳是會背叛你的。
+    if (deaths < EASE_1) {
+      traps.push({
+        when: { t: 'afterDelay', s: 0.1 },
+        do: [{ t: 'fakeTiles', x: 8, y: 14, w: 2, h: 1 }],
+        once: true,
+      });
+    }
+
+    // 六、門鎖住 1.0 秒，頭頂砸下方塊。死到第二階段就撤掉，
+    //     而且它連假地板都幫你補成真的——這是全遊戲唯一一次
+    //     revealFake 往「對玩家有利」的方向用。
+    //     它在示範它有多不在乎：連放水都放得這麼明顯。
+    if (deaths < EASE_2) {
+      traps.push({
+        when: { t: 'standOn', x: 23, y: 14 },
+        do: [
+          { t: 'lockDoor', s: 1.0 },
+          { t: 'dropBlock', x: 23, y: 5 },
+        ],
+        once: true,
+      });
+    } else {
+      traps.push({
+        when: { t: 'afterDelay', s: 0.1 },
+        do: [{ t: 'revealFake', x: 1, y: 14, w: 28, h: 1 }],
+        once: true,
+      });
+    }
+
+    // 七、門往上跳，順手把那扇假門拉到真門旁邊。
     //     這一個永遠都在——它可以放水，但不會不出手。
     traps.push({
       when: { t: 'touchDoor' },
