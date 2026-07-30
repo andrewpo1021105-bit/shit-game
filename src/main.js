@@ -6,6 +6,7 @@ import { startLoop } from './engine/loop.js';
 import { initSprites } from './engine/sprites.js';
 import { createRenderer, fmtTime } from './engine/render.js';
 import { createAudio } from './engine/audio.js';
+import { createTouch, ASK } from './engine/touch.js';
 
 // 走到這一行就代表模組載得起來。把「遊戲沒有啟動」那塊說明收掉。
 document.getElementById('boot')?.remove?.();
@@ -45,9 +46,29 @@ function recordRun() {
   session.lastEntry = entry;   // entry 就在 board 裡,畫排行榜時用身分比對挑出這一筆
 }
 
-// 開場畫面。按方向鍵或跳躍才進遊戲——計時也從那一刻才開始跑。
+// 開場分三頁:先問你用什麼裝置(ask)→ 標題畫面(title)→ 遊戲。
+// 手機/平板選下去就開觸控按鈕;計時一樣從真正開始的那一刻才跑。
+let stage = 'ask';           // 'ask' | 'title'
+let mobileMode = false;
 let started = false;
 let introT = 0;
+let tapCopy = false;
+
+// 這台裝置看起來有沒有觸控——只拿來把建議的按鈕框亮,不替使用者決定
+const touchy = (typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0)
+  || ('ontouchstart' in window);
+
+const touch = createTouch(canvas, (x, y) => {
+  if (stage === 'ask') {
+    const hit = (z) => x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h;
+    if (hit(ASK.mobile)) { mobileMode = true; touch.enabled = true; stage = 'title'; }
+    else if (hit(ASK.desktop)) { mobileMode = false; stage = 'title'; }
+    return;
+  }
+  if (!started) { wantStart = true; return; }
+  // 結算畫面:點一下就複製戰績,手機沒有 C 鍵
+  if (session.phase === 'finished') tapCopy = true;
+});
 
 // 創造者模式:在開場畫面把密碼打完就解鎖,N/B 可以跳關。
 // 密碼裡的 A、D、W 跟移動鍵重疊,所以「正在輸入密碼」的期間
@@ -60,6 +81,12 @@ const START_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'Ente
 
 window.addEventListener('keydown', (e) => {
   if (started) return;
+  // 詢問頁按到鍵盤,那答案很明顯就是「電腦鍵盤」
+  if (stage === 'ask') {
+    mobileMode = false;
+    stage = 'title';
+    return;
+  }
   const ch = e.key.length === 1 ? e.key.toUpperCase() : null;
   if (ch) {
     pwProgress = PASSWORD[pwProgress] === ch ? pwProgress + 1 : (PASSWORD[0] === ch ? 1 : 0);
@@ -75,16 +102,17 @@ window.addEventListener('keydown', (e) => {
 });
 
 function step(dt) {
-  // M 靜音/開音樂,開場中也有效
-  if (input.consumeMute()) audio.toggleMusic();
+  // M 靜音/開音樂,開場中也有效;手機用畫面右上角的 ♪ 鈕
+  if (input.consumeMute() || touch.consumeMute()) audio.toggleMusic();
   if (!started) {
     introT += dt;
-    if (wantStart) {
+    if (stage === 'title' && wantStart) {
       started = true;
       // 瀏覽器規定要有使用者手勢才准出聲——開始遊戲的這一下正好
       audio.startMusic();
     }
     input.consumeRestart();   // 開場按 R 不該累積成遊戲裡的重來
+    touch.consumeRestart();
     return;
   }
   // 跳關是創造者的特權;不是創造者的話,把按鍵吃掉當作沒發生
@@ -95,13 +123,19 @@ function step(dt) {
     input.consumeNext();
     input.consumeBack();
   }
-  if (input.consumeRestart()) restartLevel(session);
-  // 戰績是要傳給朋友的，所以一定要複製得走
-  if (input.consumeCopy() && session.phase === 'finished') {
+  if (input.consumeRestart() || touch.consumeRestart()) restartLevel(session);
+  // 戰績是要傳給朋友的，所以一定要複製得走。手機點結算畫面就是複製。
+  if ((input.consumeCopy() || tapCopy) && session.phase === 'finished') {
     const text = `搞人遊戲 — 總共死了 ${session.totalDeaths} 次,花了 ${fmtTime(session.totalTime)}`;
     navigator.clipboard?.writeText(text).catch(() => {});
   }
-  updateSession(session, input.state, dt);
+  tapCopy = false;
+  // 鍵盤跟觸控誰按了都算——兩邊都沒按才是沒按
+  updateSession(session, {
+    left: input.state.left || touch.state.left,
+    right: input.state.right || touch.state.right,
+    jump: input.state.jump || touch.state.jump,
+  }, dt);
   if (session.phase === 'finished' && !recorded) {
     recorded = true;
     recordRun();
@@ -119,9 +153,11 @@ function step(dt) {
 }
 
 function render() {
-  if (!started) { renderer.drawIntro(introT, creatorMode); return; }
+  if (stage === 'ask') { renderer.drawAsk(introT, touchy); return; }
+  if (!started) { renderer.drawIntro(introT, creatorMode, mobileMode); return; }
   session.world.creator = creatorMode;   // HUD 要畫創造者徽章
   renderer.draw(session, shake);
+  if (mobileMode && session.phase !== 'finished') renderer.drawTouchButtons(touch);
 }
 
 startLoop(step, render, PHYSICS_DT);

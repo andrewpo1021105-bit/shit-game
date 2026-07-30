@@ -91,19 +91,16 @@ const html = `<!doctype html>
     font: 12px/1.6 Consolas, "Microsoft JhengHei", monospace;
     color: #6f779b;
   }
-  canvas { image-rendering: pixelated; display: block; }
+  /* touch-action: none——沒有它,手機上按方向鈕會變成捲動頁面 */
+  canvas { image-rendering: pixelated; display: block; touch-action: none; }
   #hint { text-align: center; }
   #hint b { color: #8fd6a0; font-weight: normal; }
-  /* 沒有實體鍵盤就玩不了，這件事要講在前面，不要讓人按半天才發現 */
-  #nokb { display: none; color: #e04b4b; }
-  @media (pointer: coarse) { #nokb { display: block; } }
 </style>
 </head>
 <body>
 <canvas id="game" width="480" height="270"></canvas>
 <div id="hint">
-  <b>&larr; &rarr;</b> 移動　<b>空白鍵</b> 跳　<b>R</b> 重來
-  <div id="nokb">這一版還沒有觸控操作，請用有鍵盤的電腦開。</div>
+  <b>&larr; &rarr;</b> 移動　<b>空白鍵</b> 跳　<b>R</b> 重來　手機平板開頭選「📱」就有觸控按鈕
 </div>
 <script type="module">
 const __mods = {};

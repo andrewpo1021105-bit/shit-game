@@ -7,7 +7,8 @@
 <style>
   html, body { margin: 0; height: 100%; background: #05060a; overflow: hidden; }
   body { display: flex; align-items: center; justify-content: center; }
-  canvas { image-rendering: pixelated; display: block; }
+  /* touch-action: none——沒有它,手機上按方向鈕會變成捲動頁面 */
+  canvas { image-rendering: pixelated; display: block; touch-action: none; }
   /* 這一頁用 ES module，從 file:// 雙擊開會被 CORS 擋掉，
      而症狀是整個畫面全黑、console 以外什麼線索都沒有。
      所以先把說明畫在那裡，遊戲真的起來之後 main.js 再把它移掉——

@@ -1,6 +1,7 @@
 import { TILE, VIEW_W, VIEW_H } from '../game/constants.js';
 import { SWEEP_IN, REVEAL_AT, TRANSITION_TIME } from '../game/session.js';
 import { SPRITES } from './sprites.js';
+import { ZONES, ASK } from './touch.js';
 
 const C = {
   bg: '#12141f',
@@ -601,9 +602,89 @@ export function createRenderer(canvas) {
     });
   }
 
+  // 開場的第一頁:先問你用什麼玩。兩顆大按鈕,點了才進標題畫面。
+  function drawAsk(t, touchy) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawSky({ time: t });
+    ctx.fillStyle = MC.dirt;
+    ctx.fillRect(0, 232, VIEW_W, VIEW_H - 232);
+    ctx.fillStyle = MC.grassSide;
+    ctx.fillRect(0, 232, VIEW_W, 5);
+    ctx.fillStyle = MC.grassEdge;
+    ctx.fillRect(0, 232, VIEW_W, 2);
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 30px "Microsoft JhengHei", sans-serif';
+    ctx.fillStyle = '#2b1d04';
+    ctx.fillText('搞 人 遊 戲', VIEW_W / 2 + 2, 72);
+    ctx.fillStyle = '#ffd75e';
+    ctx.fillText('搞 人 遊 戲', VIEW_W / 2, 70);
+
+    ctx.font = '13px "Microsoft JhengHei", sans-serif';
+    ctx.fillStyle = '#1d3557';
+    ctx.fillText('你用什麼玩?', VIEW_W / 2, 116);
+
+    // touchy = 這台裝置看起來有觸控——把建議的那顆框亮一點
+    for (const [name, z] of Object.entries(ASK)) {
+      const hot = (name === 'mobile') === touchy;
+      ctx.fillStyle = 'rgba(5,6,10,0.55)';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.fillStyle = hot ? '#ffd75e' : '#6f779b';
+      ctx.fillRect(z.x, z.y, z.w, 2);
+      ctx.fillRect(z.x, z.y + z.h - 2, z.w, 2);
+      ctx.fillRect(z.x, z.y, 2, z.h);
+      ctx.fillRect(z.x + z.w - 2, z.y, 2, z.h);
+      ctx.font = 'bold 14px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = hot ? '#ffd75e' : '#d8dae6';
+      ctx.fillText(name === 'mobile' ? '📱 手機 / 平板' : '⌨ 電腦鍵盤', z.x + z.w / 2, z.y + 26);
+      ctx.font = '9px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#9aa3b5';
+      ctx.fillText(name === 'mobile' ? '螢幕上會有觸控按鈕' : '方向鍵移動.空白鍵跳', z.x + z.w / 2, z.y + 44);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  // 遊戲中的觸控按鈕。半透明壓在畫面上,壓到的那顆會亮。
+  function drawTouchButtons(touch) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const btn = (z, hot) => {
+      ctx.fillStyle = hot ? 'rgba(255,215,94,0.30)' : 'rgba(5,6,10,0.30)';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.fillStyle = hot ? 'rgba(255,215,94,0.9)' : 'rgba(255,255,255,0.35)';
+      ctx.fillRect(z.x, z.y, z.w, 1);
+      ctx.fillRect(z.x, z.y + z.h - 1, z.w, 1);
+      ctx.fillRect(z.x, z.y, 1, z.h);
+      ctx.fillRect(z.x + z.w - 1, z.y, 1, z.h);
+    };
+    const arrow = (z, dir, hot) => {
+      const cx = z.x + z.w / 2, cy = z.y + z.h / 2;
+      tri(cx - dir * 9, cy - 12, cx - dir * 9, cy + 12, cx + dir * 11, cy,
+        hot ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)');
+    };
+    btn(ZONES.left, touch.pressed.left);
+    arrow(ZONES.left, -1, touch.pressed.left);
+    btn(ZONES.right, touch.pressed.right);
+    arrow(ZONES.right, 1, touch.pressed.right);
+    btn(ZONES.jump, touch.pressed.jump);
+    tri(
+      ZONES.jump.x + ZONES.jump.w / 2 - 13, ZONES.jump.y + ZONES.jump.h / 2 + 9,
+      ZONES.jump.x + ZONES.jump.w / 2 + 13, ZONES.jump.y + ZONES.jump.h / 2 + 9,
+      ZONES.jump.x + ZONES.jump.w / 2, ZONES.jump.y + ZONES.jump.h / 2 - 13,
+      touch.pressed.jump ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)',
+    );
+    btn(ZONES.restart, touch.pressed.restart);
+    btn(ZONES.mute, touch.pressed.mute);
+    ctx.textAlign = 'center';
+    ctx.font = '10px Consolas, monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('R', ZONES.restart.x + ZONES.restart.w / 2, ZONES.restart.y + 17);
+    ctx.fillText('♪', ZONES.mute.x + ZONES.mute.w / 2, ZONES.mute.y + 15);
+    ctx.textAlign = 'left';
+  }
+
   // 開場畫面。陽光草地、被殭屍追著跑的方塊人——看起來是快樂遊戲,
   // 這個第一印象本身就是全遊戲的第一個陷阱。
-  function drawIntro(t, creator = false) {
+  function drawIntro(t, creator = false, mobile = false) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     drawSky({ time: t });
 
@@ -640,7 +721,7 @@ export function createRenderer(canvas) {
     if (Math.floor(t * 1.6) % 2 === 0) {
       ctx.font = 'bold 12px "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#e04b4b';
-      ctx.fillText('按 任 意 鍵 開 始', VIEW_W / 2, 190);
+      ctx.fillText(mobile ? '點 擊 螢 幕 開 始' : '按 任 意 鍵 開 始', VIEW_W / 2, 190);
     }
 
     // 密碼打對了才會出現。不提示有密碼這回事——知道的人自然知道。
@@ -779,5 +860,5 @@ export function createRenderer(canvas) {
 
   resize();
   window.addEventListener('resize', resize);
-  return { resize, draw, drawIntro };
+  return { resize, draw, drawIntro, drawAsk, drawTouchButtons };
 }
