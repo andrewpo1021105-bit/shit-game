@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  createSession, updateSession, restartLevel,
+  createSession, updateSession, restartLevel, jumpLevel,
   CLEAR_HOLD, REVEAL_AT, TRANSITION_TIME,
 } from '../src/game/session.js';
 import { LEVELS } from '../src/game/levels/index.js';
@@ -184,4 +184,17 @@ test('遊玩時間只在操作中累計,轉場與結算不算', () => {
     updateSession(session, { left: false, right: false, jump: false }, PHYSICS_DT);
   }
   assert.equal(session.totalTime, t0, '轉場期間計時要停');
+});
+
+test('創造者模式的跳關:前進、後退、都夾在合法範圍內', () => {
+  const s = createSession(LEVELS);
+  jumpLevel(s, 1);
+  assert.equal(s.index, 1);
+  assert.equal(s.world.level.id, LEVELS[1].id);
+  assert.equal(s.phase, 'play');
+  jumpLevel(s, -1);
+  jumpLevel(s, -1);   // 已經在第一關,再退不該爆炸
+  assert.equal(s.index, 0);
+  for (let i = 0; i < 99; i++) jumpLevel(s, 1);   // 衝過頭要停在最後一關
+  assert.equal(s.index, LEVELS.length - 1);
 });

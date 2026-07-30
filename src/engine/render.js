@@ -455,6 +455,13 @@ export function createRenderer(canvas) {
     ctx.fillText(`DEATHS ${world.deaths}`, VIEW_W - 8, 12);
     ctx.textAlign = 'left';
 
+    // 創造者徽章。金色,擺在關卡編號下面——這不是給玩家看的,
+    // 是給拿著密碼的那個人確認「我現在可以跳關」用的。
+    if (world.creator) {
+      ctx.fillStyle = '#c9a227';
+      ctx.fillText('CREATOR  N/B 跳關', 8, 22);
+    }
+
     // 通關計時,結算畫面的排行榜比的就是它。掛在 world 上是 session
     // 每幀塞進來的——render 不 import session,免得畫畫的人管到規則。
     if (world.hudTime !== undefined) {
@@ -596,7 +603,7 @@ export function createRenderer(canvas) {
 
   // 開場畫面。陽光草地、被殭屍追著跑的方塊人——看起來是快樂遊戲,
   // 這個第一印象本身就是全遊戲的第一個陷阱。
-  function drawIntro(t) {
+  function drawIntro(t, creator = false) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     drawSky({ time: t });
 
@@ -634,6 +641,13 @@ export function createRenderer(canvas) {
       ctx.font = 'bold 12px "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#e04b4b';
       ctx.fillText('按 任 意 鍵 開 始', VIEW_W / 2, 190);
+    }
+
+    // 密碼打對了才會出現。不提示有密碼這回事——知道的人自然知道。
+    if (creator) {
+      ctx.font = 'bold 11px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#ffd75e';
+      ctx.fillText('★ 創造者模式已啟用 — N 下一關 / B 上一關 ★', VIEW_W / 2, 212);
     }
     ctx.textAlign = 'left';
   }

@@ -1,6 +1,6 @@
 import { PHYSICS_DT, VIEW_W, VIEW_H } from './game/constants.js';
 import { LEVELS } from './game/levels/index.js';
-import { createSession, updateSession, restartLevel } from './game/session.js';
+import { createSession, updateSession, restartLevel, jumpLevel } from './game/session.js';
 import { createInput } from './engine/input.js';
 import { startLoop } from './engine/loop.js';
 import { initSprites } from './engine/sprites.js';
@@ -45,22 +45,55 @@ function recordRun() {
   session.lastEntry = entry;   // entry 就在 board 裡,畫排行榜時用身分比對挑出這一筆
 }
 
-// 開場畫面。按任何一個方向鍵或跳躍才進遊戲——計時也從那一刻才開始跑。
+// 開場畫面。按方向鍵或跳躍才進遊戲——計時也從那一刻才開始跑。
 let started = false;
 let introT = 0;
+
+// 創造者模式:在開場畫面把密碼打完就解鎖,N/B 可以跳關。
+// 密碼裡的 A、D、W 跟移動鍵重疊,所以「正在輸入密碼」的期間
+// 這些鍵不算開始遊戲——打錯字歸零之後它們才恢復原本的身分。
+const PASSWORD = 'ANDREW1105';
+let pwProgress = 0;
+let creatorMode = false;
+let wantStart = false;
+const START_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'Enter', 'KeyW', 'KeyA', 'KeyD']);
+
+window.addEventListener('keydown', (e) => {
+  if (started) return;
+  const ch = e.key.length === 1 ? e.key.toUpperCase() : null;
+  if (ch) {
+    pwProgress = PASSWORD[pwProgress] === ch ? pwProgress + 1 : (PASSWORD[0] === ch ? 1 : 0);
+    if (pwProgress === PASSWORD.length) {
+      creatorMode = true;
+      pwProgress = 0;
+      audio.play('win');
+      return;   // 解鎖的那一鍵不當作開始
+    }
+    if (pwProgress > 0) return;   // 密碼打到一半,先不開始
+  }
+  if (START_KEYS.has(e.code)) wantStart = true;
+});
 
 function step(dt) {
   // M 靜音/開音樂,開場中也有效
   if (input.consumeMute()) audio.toggleMusic();
   if (!started) {
     introT += dt;
-    if (input.state.left || input.state.right || input.state.jump) {
+    if (wantStart) {
       started = true;
       // 瀏覽器規定要有使用者手勢才准出聲——開始遊戲的這一下正好
       audio.startMusic();
     }
     input.consumeRestart();   // 開場按 R 不該累積成遊戲裡的重來
     return;
+  }
+  // 跳關是創造者的特權;不是創造者的話,把按鍵吃掉當作沒發生
+  if (creatorMode) {
+    if (input.consumeNext()) jumpLevel(session, 1);
+    if (input.consumeBack()) jumpLevel(session, -1);
+  } else {
+    input.consumeNext();
+    input.consumeBack();
   }
   if (input.consumeRestart()) restartLevel(session);
   // 戰績是要傳給朋友的，所以一定要複製得走
@@ -86,7 +119,8 @@ function step(dt) {
 }
 
 function render() {
-  if (!started) { renderer.drawIntro(introT); return; }
+  if (!started) { renderer.drawIntro(introT, creatorMode); return; }
+  session.world.creator = creatorMode;   // HUD 要畫創造者徽章
   renderer.draw(session, shake);
 }
 

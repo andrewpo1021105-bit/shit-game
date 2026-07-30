@@ -43,6 +43,17 @@ function reveal(session) {
   session.revealed = true;
 }
 
+// 創造者模式的跳關。直接換到指定方向的關卡,不結算、不轉場、不計死亡——
+// 這是給造關的人用的傳送門,不是給玩家用的捷徑。
+export function jumpLevel(session, dir) {
+  if (session.phase === 'finished') return;
+  const i = Math.max(0, Math.min(session.levels.length - 1, session.index + dir));
+  session.index = i;
+  session.world = createWorld(session.levels[i], session.profile);
+  session.phase = 'play';
+  session.timer = 0;
+}
+
 export function restartLevel(session) {
   if (session.phase !== 'play') return;
   const deaths = session.world.deaths;

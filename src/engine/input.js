@@ -7,8 +7,8 @@ const KEYS = {
 export function createInput(target = window) {
   const state = { left: false, right: false, jump: false };
   const api = {
-    state, restart: false, copy: false, mute: false,
-    consumeRestart, consumeCopy, consumeMute, destroy,
+    state, restart: false, copy: false, mute: false, next: false, back: false,
+    consumeRestart, consumeCopy, consumeMute, consumeNext, consumeBack, destroy,
   };
 
   function onKey(down) {
@@ -16,6 +16,9 @@ export function createInput(target = window) {
       if (e.code === 'KeyR') { if (down) api.restart = true; return; }
       if (e.code === 'KeyC') { if (down) api.copy = true; return; }
       if (e.code === 'KeyM') { if (down) api.mute = true; return; }
+      // N/B 只有創造者模式會理它,一般玩家按了什麼事都不會發生
+      if (e.code === 'KeyN') { if (down) api.next = true; return; }
+      if (e.code === 'KeyB') { if (down) api.back = true; return; }
       const action = KEYS[e.code];
       if (!action) return;
       e.preventDefault();
@@ -43,6 +46,16 @@ export function createInput(target = window) {
     const m = api.mute;
     api.mute = false;
     return m;
+  }
+  function consumeNext() {
+    const n = api.next;
+    api.next = false;
+    return n;
+  }
+  function consumeBack() {
+    const b = api.back;
+    api.back = false;
+    return b;
   }
   function destroy() {
     target.removeEventListener('keydown', kd);
