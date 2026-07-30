@@ -99,7 +99,9 @@ export function updateSession(session, input, dt) {
       session.totalDeaths += session.fight.deaths;
       session.phase = 'finished';
       session.timer = 0;
-      session.bossCleared = true;   // 屠龍者,排行榜掛星
+      // 屠龍者掛星;倒下的人,結算畫面會記得牠還活著
+      session.bossCleared = session.fight.won === true;
+      session.bossFailed = session.fight.won !== true;
       session.report = buildReport(session.profile);
     }
     return;

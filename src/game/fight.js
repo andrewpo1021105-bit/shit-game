@@ -1,5 +1,5 @@
 import { createPlayer, updatePlayer } from './player.js';
-import { TILE, RESPAWN_DELAY, DEFAULT_TUNE } from './constants.js';
+import { TILE, DEFAULT_TUNE } from './constants.js';
 
 // 打鬥模式。打贏第 18 關的人撿起一把劍,走進這個房間——
 // 從這裡開始它不再是整人遊戲,是一場正面對決:
@@ -63,6 +63,8 @@ export function createFight() {
     // 劍
     slash: 0,
     slashCd: 0,
+    swingCount: 0,   // 每第三刀會放出劍氣——見 beams
+    beams: [],       // 劍氣飛行道具 {x, y, w, h, vx}
 
     // 格鬥遊戲的行頭:血量、回合、打擊停頓、無敵時間、火花、連擊
     playerHp: PLAYER_HP,
@@ -75,6 +77,10 @@ export function createFight() {
     spark: null,                // 命中火花 {x, y, t}
     combo: 0,
     comboT: 0,
+
+    // 單命制:倒下一次就是屠龍失敗。這一戰沒有續關投幣。
+    lost: false,
+    lostT: 0,
 
     // 牠
     dragon: {
@@ -110,12 +116,16 @@ function dragonBox(d) {
   return { x: d.x, y: d.y, w: d.w, h: d.h };
 }
 
+// 倒下=屠龍失敗。沒有下一回合,沒有續關投幣——
+// 這一戰的重量就是從「只有一條命」來的。
 function die(f) {
   if (f.phase !== 'play') return;
   f.phase = 'dying';
-  f.phaseTimer = RESPAWN_DELAY;
   f.deaths += 1;
+  f.lost = true;
+  f.lostT = 0;
   f.events.push('death');
+  f.events.push('roar');
 }
 
 // 挨一下:扣血、擊退、無敵閃爍、打擊停頓——快打旋風的完整流程。
@@ -135,22 +145,21 @@ function hurt(f, fromX) {
   if (f.playerHp <= 0) die(f);
 }
 
-function respawn(f) {
-  f.player = createPlayer(3, 13);
-  f.hazards = [];
-  f.playerHp = PLAYER_HP;
-  f.shownPlayerHp = PLAYER_HP;
-  f.invuln = 0;
-  f.combo = 0;
-  f.round += 1;      // 新的一命就是新的一回合,ROUND N 重新報幕
-  f.roundT = 0;
-  const d = f.dragon;
-  d.x = d.homeX;
-  d.state = 'rest';
-  d.t = 0;
-  d.fired = 0;
-  d.swipeT = -1;
-  // 龍的血量保留——你的進度不會因為倒下歸零,這一戰是消耗戰
+// 龍受一點傷:白閃、火花、連擊、打擊停頓,一條龍服務
+function damageDragon(f, hitX, hitY) {
+  f.dragon.hp -= 1;
+  f.dragon.flash = 0.22;
+  f.hitstop = 0.09;
+  f.combo += 1;
+  f.comboT = 2.2;
+  f.spark = { x: hitX, y: hitY, t: 0.18 };
+  f.events.push('hit');
+  if (f.dragon.hp <= 0) {
+    f.won = true;
+    f.hitstop = 0;
+    f.events.push('win');
+    f.events.push('roar');
+  }
 }
 
 function spitFireball(f) {
@@ -258,15 +267,16 @@ export function updateFight(f, input, dt) {
     return;
   }
 
-  // 打擊停頓:命中的那一拍,全世界靜止。打擊感就是從這裡來的。
-  if (f.hitstop > 0) {
-    f.hitstop -= dt;
+  // 敗北演出:你倒下了。屠龍失敗,沒有第二次。
+  if (f.lost) {
+    f.lostT += dt;
+    if (f.lostT >= 2.4) f.done = true;
     return;
   }
 
-  if (f.phase === 'dying') {
-    f.phaseTimer -= dt;
-    if (f.phaseTimer <= 0) { f.phase = 'play'; respawn(f); }
+  // 打擊停頓:命中的那一拍,全世界靜止。打擊感就是從這裡來的。
+  if (f.hitstop > 0) {
+    f.hitstop -= dt;
     return;
   }
 
@@ -286,6 +296,7 @@ export function updateFight(f, input, dt) {
   if (input.attack && f.slashCd <= 0) {
     f.slash = SLASH_TIME;
     f.slashCd = SLASH_CD;
+    f.swingCount += 1;
     f.events.push('swing');
     const p = f.player;
     const blade = {
@@ -294,26 +305,39 @@ export function updateFight(f, input, dt) {
       w: 26, h: 26,
     };
     if (overlap(blade, dragonBox(f.dragon))) {
-      f.dragon.hp -= 1;
-      f.dragon.flash = 0.22;
-      f.hitstop = 0.09;
-      f.combo += 1;
-      f.comboT = 2.2;
-      f.spark = {
-        x: p.facing < 0 ? p.x - 14 : p.x + p.w + 14,
-        y: p.y + 4,
-        t: 0.18,
-      };
-      f.events.push('hit');
-      if (f.dragon.hp <= 0) {
-        f.won = true;
-        f.hitstop = 0;
-        f.events.push('win');
-        f.events.push('roar');
-        return;
-      }
+      damageDragon(
+        f,
+        p.facing < 0 ? p.x - 14 : p.x + p.w + 14,
+        p.y + 4,
+      );
+      if (f.won) return;
+    }
+    // 每第三刀,劍會放出一道劍氣——遠程的那一下。
+    // 固定節奏,不是隨機:你可以算著用它。
+    if (f.swingCount % 3 === 0) {
+      f.beams.push({
+        x: p.facing < 0 ? p.x - 20 : p.x + p.w + 2,
+        y: p.y + 2,
+        w: 18, h: 10,
+        vx: (p.facing < 0 ? -1 : 1) * 260,
+      });
+      f.events.push('flip');   // 劍氣出手的音效:借反轉那個「咻」
     }
   }
+
+  // 劍氣飛行與命中
+  const beamsAlive = [];
+  for (const b of f.beams) {
+    b.x += b.vx * dt;
+    if (b.x <= TILE || b.x + b.w >= 29 * TILE) continue;
+    if (overlap(b, dragonBox(f.dragon))) {
+      damageDragon(f, b.vx > 0 ? b.x + b.w : b.x, b.y + b.h / 2);
+      if (f.won) return;
+      continue;   // 劍氣打中就消散
+    }
+    beamsAlive.push(b);
+  }
+  f.beams = beamsAlive;
 
   updateDragon(f, dt);
   if (f.phase !== 'play') return;   // 尾擊或衝撞已經把人打倒

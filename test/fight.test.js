@@ -43,15 +43,30 @@ test('火球打中會扣血、進入無敵閃爍,不是秒死', () => {
   assert.ok(f.deaths === 0 || f.playerHp === f.maxPlayerHp, '一發不該直接死');
 });
 
-test('血歸零才倒下,重生回滿血、進下一回合,龍的血不變', () => {
+test('血歸零就是屠龍失敗——單命制,沒有續關投幣', () => {
   const f = createFight();
   f.playerHp = 1;
   f.shownPlayerHp = 1;
   run(f, 10);
-  assert.ok(f.deaths >= 1, `剩 1 滴血挨打應該倒下,實際 deaths=${f.deaths}`);
-  assert.equal(f.playerHp, f.maxPlayerHp, '重生要回滿血');
-  assert.ok(f.round >= 2, '倒下一次就是新的回合');
-  assert.equal(f.dragon.hp, f.dragon.maxHp, '玩家倒下不該回復龍的血');
+  assert.equal(f.deaths, 1, `剩 1 滴血挨打應該倒下,實際 deaths=${f.deaths}`);
+  assert.equal(f.lost, true, '倒下就是敗北');
+  run(f, 3);
+  assert.equal(f.done, true, '敗北演出完要收場');
+  assert.equal(f.won, false);
+});
+
+test('每第三刀放出劍氣,遠距離也砍得到龍', () => {
+  const f = createFight();
+  f.roundT = 2;                 // 跳過報幕
+  f.dragon.state = 'tired';     // 讓牠安分一下,專心驗證劍氣
+  f.dragon.t = -99;
+  f.player.x = 5 * TILE;        // 站得遠遠的
+  f.player.facing = 1;
+  run(f, 1.2, ATK);             // 三刀:0 / 0.42 / 0.84,第三刀出劍氣
+  assert.ok(f.beams.length > 0 || f.dragon.hp < f.dragon.maxHp,
+    '第三刀該有劍氣在飛,或已經打中了');
+  run(f, 1.5, NONE);            // 讓劍氣飛完
+  assert.ok(f.dragon.hp < f.dragon.maxHp, `劍氣該打中龍,實際 hp=${f.dragon.hp}`);
 });
 
 test('揮劍砍得到龍,冷卻+打擊停頓擋得住連點', () => {

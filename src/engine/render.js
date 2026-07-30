@@ -768,52 +768,148 @@ export function createRenderer(canvas) {
   // ── 龍 ────────────────────────────────────────────────
   // 方塊拼的巨龍。狀態全寫在姿勢上:張嘴=要吐火、壓低=要衝、
   // 喘氣=你的回合。快打旋風的規矩:每一招都先講,躲不掉是你的事。
-  function drawDragon(d, won, wonT) {
+  // 會呼吸、翅膀會搧、蓄力時嘴裡有火光——牠是主角級的敵人,要有排場。
+  function drawDragon(d, won, wonT, time = 0) {
     const flat = d.state === 'charge';
+    const breathe = flat ? 0 : Math.sin(time * 2.2) * 1.6;
     const x = Math.round(d.x);
     const h = flat ? 24 : d.h;
-    const y = Math.round(flat ? 14 * TILE - 24 : d.y);
+    const y = Math.round((flat ? 14 * TILE - 24 : d.y) + breathe);
     const dir = d.face;
+    const hit = d.flash > 0;
     const alpha = won ? Math.max(0.15, 1 - wonT * 0.4) : 1;
     ctx.globalAlpha = alpha;
 
-    // 身體
-    ctx.fillStyle = d.flash > 0 ? '#ffe0d0' : '#8a2321';
-    ctx.fillRect(x, y, d.w, h);
-    ctx.fillStyle = d.flash > 0 ? '#ffc9b0' : '#6d1a19';
-    ctx.fillRect(x, y, d.w, 6);
-    // 肚皮
-    ctx.fillStyle = '#d8b26a';
-    ctx.fillRect(x + 6, y + h - 8, d.w - 12, 6);
-    // 背刺
-    ctx.fillStyle = '#3a0f0f';
-    for (let i = 0; i < 5; i++) tri(x + 8 + i * 14, y, x + 18 + i * 14, y, x + 13 + i * 14, y - (flat ? 4 : 9), '#3a0f0f');
-    // 翅膀(衝撞時收起來)
-    if (!flat) {
-      tri(x + d.w / 2, y + 4, x + d.w / 2 - 26, y - 20, x + d.w / 2 - 4, y + 2, '#5c1414');
-      tri(x + d.w / 2 + 4, y + 4, x + d.w / 2 + 28, y - 18, x + d.w / 2 + 8, y + 2, '#4a1010');
+    // 衝撞的速度線
+    if (flat) {
+      ctx.fillStyle = 'rgba(255,138,42,0.35)';
+      for (let i = 1; i <= 3; i++) {
+        ctx.fillRect(x + (d.chargeDir < 0 ? d.w + i * 10 : -i * 10 - 8), y + 4 + i * 5, 10, 2);
+      }
     }
-    // 頭(朝著玩家)
-    const hx = dir < 0 ? x - 22 : x + d.w - 2;
-    const hy = y - (flat ? 0 : 8);
-    ctx.fillStyle = d.flash > 0 ? '#ffe0d0' : '#8a2321';
-    ctx.fillRect(hx, hy, 24, 18);
-    // 角
-    ctx.fillStyle = '#e8e0d0';
-    ctx.fillRect(dir < 0 ? hx + 16 : hx + 4, hy - 6, 4, 7);
-    // 眼睛:喘氣時閉眼,平常黃燈
-    ctx.fillStyle = d.state === 'tired' ? '#555' : '#ffd75e';
-    ctx.fillRect(dir < 0 ? hx + 4 : hx + 15, hy + 4, 5, 4);
-    // 嘴:蓄力吐火時張開,露出火光
+
+    // 後翅(遠側,深色)+ 前翅(近側)——兩層才有厚度,翅膀照時間搧
+    const flap = flat ? 0 : Math.sin(time * 3.1) * 8;
+    if (!flat) {
+      const wx = x + d.w / 2;
+      tri(wx - 6, y + 6, wx - 34, y - 22 - flap, wx - 10, y + 2, '#3f0e0e');
+      quad(wx - 34, y - 22 - flap, wx - 22, y - 26 - flap, wx - 4, y + 2, wx - 10, y + 4, '#2a0c0c');
+      tri(wx + 2, y + 6, wx + 34, y - 26 + flap, wx + 8, y + 2, '#5c1414');
+      quad(wx + 34, y - 26 + flap, wx + 20, y - 30 + flap, wx + 2, y + 2, wx + 8, y + 4, '#40100f');
+    }
+
+    // 身體:主色+鱗片紋(兩排交錯的深色小塊)
+    ctx.fillStyle = hit ? '#ffe0d0' : '#7a1c1c';
+    ctx.fillRect(x, y, d.w, h);
+    ctx.fillStyle = hit ? '#ffc9b0' : '#5c1414';
+    ctx.fillRect(x, y, d.w, 5);
+    if (!hit) {
+      ctx.fillStyle = '#671717';
+      for (let i = 0; i < 6; i++) {
+        ctx.fillRect(x + 6 + i * 12, y + 12, 6, 4);
+        ctx.fillRect(x + 12 + i * 12, y + 20, 6, 4);
+      }
+    }
+    // 肚甲:一節一節的板子,不是一條顏色
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#d8b26a' : '#c2a05e';
+      ctx.fillRect(x + 5 + i * 11, y + h - 8, 10, 6);
+    }
+    // 背刺:帶描邊的獠牙排
+    for (let i = 0; i < 5; i++) {
+      const sx = x + 8 + i * 14;
+      tri(sx - 1, y + 1, sx + 11, y + 1, sx + 5, y - (flat ? 5 : 11) - 1, '#2a0c0c');
+      tri(sx + 1, y + 1, sx + 9, y + 1, sx + 5, y - (flat ? 4 : 9), '#a94a2c');
+    }
+    // 四條腿(衝撞時縮起來)
+    if (!flat) {
+      ctx.fillStyle = '#671717';
+      for (const lx of [8, 24, d.w - 30, d.w - 14]) {
+        ctx.fillRect(x + lx, y + h - 2, 8, 6);
+        ctx.fillStyle = '#e8e0d0';
+        ctx.fillRect(x + lx, y + h + 2, 3, 2);   // 爪
+        ctx.fillStyle = '#671717';
+      }
+    }
+
+    // 脖子+頭:比身體高一階,才有俯視你的氣勢
+    const hx = dir < 0 ? x - 26 : x + d.w + 2;
+    const hy = y - (flat ? 2 : 16);
+    ctx.fillStyle = hit ? '#ffe0d0' : '#7a1c1c';
+    // 脖子
+    quad(
+      dir < 0 ? x + 2 : x + d.w - 2, y + 2,
+      dir < 0 ? x + 14 : x + d.w - 14, y + 12,
+      dir < 0 ? hx + 20 : hx + 4, hy + 16,
+      dir < 0 ? hx + 24 : hx, hy + 6,
+      hit ? '#ffe0d0' : '#7a1c1c',
+    );
+    // 頭殼
+    ctx.fillRect(hx, hy, 26, 16);
+    // 下顎(張嘴時掉下來)
     const mouthOpen = d.state === 'aim' || d.state === 'fire' || d.swipeT >= 0;
-    ctx.fillStyle = mouthOpen ? '#ff8a2a' : '#3a0f0f';
-    ctx.fillRect(dir < 0 ? hx - 2 : hx + 16, hy + 11, 10, mouthOpen ? 7 : 3);
-    // 尾巴(在頭的反向);尾擊預備時翹起來
+    ctx.fillStyle = hit ? '#ffc9b0' : '#671717';
+    ctx.fillRect(dir < 0 ? hx - 4 : hx + 12, hy + 12 + (mouthOpen ? 6 : 2), 18, 5);
+    // 嘴裡的火光:蓄力時亮起來——「要吐了」的告示
+    if (mouthOpen) {
+      ctx.fillStyle = Math.floor(time * 10) % 2 ? '#ff8a2a' : '#ffd75e';
+      ctx.fillRect(dir < 0 ? hx - 2 : hx + 14, hy + 12, 12, 6);
+    }
+    // 鼻孔的煙(休息時兩縷,確定性飄)
+    if (d.state === 'rest' && !won) {
+      ctx.fillStyle = 'rgba(60,60,66,0.5)';
+      const sm = Math.floor(time * 3) % 3;
+      ctx.fillRect((dir < 0 ? hx - 4 : hx + 26) + (dir < 0 ? -sm : sm), hy + 2 - sm * 3, 3, 3);
+    }
+    // 雙角:白骨色,一長一短
+    ctx.fillStyle = '#e8e0d0';
+    tri(dir < 0 ? hx + 18 : hx + 8, hy, dir < 0 ? hx + 24 : hx + 2, hy, dir < 0 ? hx + 26 : hx, hy - 12, '#e8e0d0');
+    tri(dir < 0 ? hx + 12 : hx + 12, hy, dir < 0 ? hx + 16 : hx + 8, hy, dir < 0 ? hx + 17 : hx + 7, hy - 7, '#d8d0c0');
+    // 眼睛:平常黃燈瞇著,喘氣變灰,挨打瞬間全白吃掉
+    ctx.fillStyle = d.state === 'tired' ? '#555' : '#ffd75e';
+    ctx.fillRect(dir < 0 ? hx + 6 : hx + 16, hy + 5, 6, 3);
+    ctx.fillStyle = '#101218';
+    ctx.fillRect(dir < 0 ? hx + 8 : hx + 18, hy + 5, 2, 3);
+
+    // 尾巴:兩節,尾端一個矛尖;尾擊預備時高高翹起
     const tx0 = dir < 0 ? x + d.w : x;
     const swipeUp = d.swipeT >= 0 && d.swipeT < 0.4;
-    tri(tx0, y + h - 12, tx0 + (dir < 0 ? 26 : -26), swipeUp ? y - 10 : y + h - 26, tx0, y + h - 2, '#6d1a19');
+    const tipX = tx0 + (dir < 0 ? 34 : -34);
+    const tipY = swipeUp ? y - 16 : y + h - 30 + Math.sin(time * 2.6) * 3;
+    tri(tx0, y + h - 12, tipX, tipY + 8, tx0, y + h - 2, '#671717');
+    tri(tipX + (dir < 0 ? -4 : 4), tipY + 10, tipX + (dir < 0 ? 10 : -10), tipY + 2, tipX + (dir < 0 ? 2 : -2), tipY - 6, '#a94a2c');
 
     ctx.globalAlpha = 1;
+  }
+
+  // 手裡那把劍。平舉是待機,揮下去掃一道 110° 的弧——
+  // 動作只有 0.16 秒,但玩家看得出「我剛剛揮了一刀」。
+  function drawSword(p, slash) {
+    const dir = p.facing < 0 ? -1 : 1;
+    const px = dir < 0 ? p.x - 1 : p.x + p.w + 1;   // 握把在手上
+    const py = p.y + 8;
+    // 揮劍進度 0→1:從上舉 -70° 掃到 +40°
+    const prog = slash > 0 ? 1 - slash / 0.16 : 0;
+    const ang = slash > 0
+      ? (-70 + 110 * prog) * (Math.PI / 180)
+      : -50 * (Math.PI / 180);
+    const cos = Math.cos(ang) * dir, sin = Math.sin(ang);
+    const len = 20;
+    // 劍身(亮鋼)+ 劍脊(白)
+    quad(
+      px, py,
+      px + sin * 2, py - cos * 0 - 2,
+      px + cos * len + sin * 2, py + sin * len - 2,
+      px + cos * len, py + sin * len + 1,
+      '#cfd6e4',
+    );
+    ctx.fillStyle = '#f4f7ff';
+    ctx.fillRect(px + cos * len - 1, py + sin * len - 1, 2, 2);
+    // 護手(金)與握把(棕)
+    ctx.fillStyle = '#f0c040';
+    ctx.fillRect(px - 2, py - 2, 4, 5);
+    ctx.fillStyle = '#7a4b26';
+    ctx.fillRect(px - dir * 3 - 1, py, 3, 4);
   }
 
   // SF 式血條:外框、底色、亮黃血量、掉血殘影(紅)。
@@ -849,16 +945,39 @@ export function createRenderer(canvas) {
     }
     ctx.fillRect(f.dragon.x + 4, 14 * TILE - 3, f.dragon.w - 8, 3);
 
-    drawDragon(f.dragon, f.won, f.wonT);
+    drawDragon(f.dragon, f.won, f.wonT, f.time);
 
-    // 劍光:一道白弧,只亮 0.16 秒——揮劍是承諾,不是裝飾
+    // 手裡的劍(無敵閃爍時跟人一起消失)
+    const blinkNow = f.invuln > 0 && Math.floor(f.invuln * 16) % 2 === 0;
+    if (f.phase === 'play' && !blinkNow) drawSword(f.player, f.slash);
+
+    // 劍光:揮刀時的白弧殘影
     if (f.slash > 0 && f.phase === 'play') {
       const p = f.player;
       const dir = p.facing < 0 ? -1 : 1;
       const sx = dir < 0 ? p.x - 26 : p.x + p.w;
-      ctx.globalAlpha = Math.min(1, f.slash / 0.16 + 0.2);
+      ctx.globalAlpha = Math.min(0.8, f.slash / 0.16 + 0.1);
       tri(sx + (dir < 0 ? 26 : 0), p.y - 8, sx + (dir < 0 ? 26 : 0), p.y + 20, sx + (dir < 0 ? 0 : 26), p.y + 6, '#f4f7ff');
       ctx.globalAlpha = 1;
+    }
+
+    // 劍氣:白藍色的飛行月牙,發著光——每第三刀的獎勵
+    for (const b of f.beams) {
+      const dir = b.vx < 0 ? -1 : 1;
+      ctx.fillStyle = 'rgba(160,220,255,0.35)';
+      ctx.fillRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6);
+      tri(
+        b.x + (dir < 0 ? b.w : 0), b.y - 2,
+        b.x + (dir < 0 ? b.w : 0), b.y + b.h + 2,
+        b.x + (dir < 0 ? -4 : b.w + 4), b.y + b.h / 2,
+        '#e8f6ff',
+      );
+      tri(
+        b.x + (dir < 0 ? b.w - 6 : 6), b.y,
+        b.x + (dir < 0 ? b.w - 6 : 6), b.y + b.h,
+        b.x + (dir < 0 ? 0 : b.w), b.y + b.h / 2,
+        '#8fc6ff',
+      );
     }
 
     // 命中火花:八方迸射的星芒,黃白相間——街機的打點就長這樣
@@ -925,6 +1044,26 @@ export function createRenderer(canvas) {
         ctx.fillStyle = '#ff5a36';
         ctx.fillText('FIGHT!', VIEW_W / 2, VIEW_H / 2);
       }
+    }
+
+    // 敗北:你倒下了。K.O. 打在你身上。
+    if (f.lost) {
+      ctx.textAlign = 'center';
+      if (f.lostT < 1.1) {
+        const pop = clamp01(f.lostT / 0.25);
+        ctx.font = `bold ${Math.round(20 + 26 * pop)}px Consolas, monospace`;
+        ctx.fillStyle = '#101218';
+        ctx.fillText('K.O.', VIEW_W / 2 + 3, VIEW_H / 2 + 3);
+        ctx.fillStyle = '#c2372f';
+        ctx.fillText('K.O.', VIEW_W / 2, VIEW_H / 2);
+      } else {
+        ctx.font = 'bold 20px "Microsoft JhengHei", sans-serif';
+        ctx.fillStyle = '#101218';
+        ctx.fillText('屠 龍 失 敗', VIEW_W / 2 + 2, VIEW_H / 2 + 2);
+        ctx.fillStyle = '#c2372f';
+        ctx.fillText('屠 龍 失 敗', VIEW_W / 2, VIEW_H / 2);
+      }
+      ctx.textAlign = 'left';
     }
 
     // K.O. → 屠龍成功
@@ -1110,7 +1249,11 @@ export function createRenderer(canvas) {
     } else if (session.bossCleared) {
       ctx.font = '9px "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#ffd75e';
-      ctx.fillText('⭐ BOSS 討伐成功', cx, 88);
+      ctx.fillText('⭐ 屠龍成功', cx, 88);
+    } else if (session.bossFailed) {
+      ctx.font = '9px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = '#ff8a5c';
+      ctx.fillText('屠龍失敗——牠還在那裡等你', cx, 88);
     }
 
     // 全球排行榜——所有人的成績都在同一張榜上,前十名攤開。
