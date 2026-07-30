@@ -32,11 +32,18 @@ export function createTouch(canvas, onTap) {
   // 測試環境的假 canvas 沒有事件系統——那就當作沒有觸控,安靜退場
   if (!canvas.addEventListener) return api;
 
+  // getBoundingClientRect 會逼瀏覽器重算版面,拇指一滑就是幾十次——
+  // 手機會卡。畫布位置只有轉向/縮放時才變,快取起來,resize 才重算。
+  let rect = null;
+  const dropRect = () => { rect = null; };
+  window.addEventListener?.('resize', dropRect);
+  window.addEventListener?.('orientationchange', dropRect);
+
   function toCanvas(e) {
-    const r = canvas.getBoundingClientRect();
+    if (!rect) rect = canvas.getBoundingClientRect();
     return [
-      ((e.clientX - r.left) * VIEW_W) / r.width,
-      ((e.clientY - r.top) * VIEW_H) / r.height,
+      ((e.clientX - rect.left) * VIEW_W) / rect.width,
+      ((e.clientY - rect.top) * VIEW_H) / rect.height,
     ];
   }
 

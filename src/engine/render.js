@@ -58,8 +58,21 @@ function typed(text, t, start, dur) {
 }
 
 export function createRenderer(canvas) {
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
+  const screenCtx = canvas.getContext('2d');
+  screenCtx.imageSmoothingEnabled = false;
+  // ctx 是「目前的畫布」。地形要畫進離屏快取時會暫時換成 tctx,
+  // 畫完換回來——所有繪圖函式都讀這個變數,誰在當畫布它們不用知道。
+  let ctx = screenCtx;
+
+  // 地形快取。每幀重畫整片方塊地形是幾百個 canvas 呼叫,手機扛不住;
+  // 但地形只有陷阱發動時才會變。所以畫一次存起來,之後每幀一張
+  // drawImage。key 是整張地圖字串——變了才重畫,沒變就直接貼圖。
+  const terrain = document.createElement('canvas');
+  terrain.width = VIEW_W;
+  terrain.height = VIEW_H;
+  const tctx = terrain.getContext('2d');
+  if (tctx) tctx.imageSmoothingEnabled = false;
+  let terrainKey = null;
 
   function resize() {
     const scale = Math.max(1, Math.floor(Math.min(
@@ -374,38 +387,48 @@ export function createRenderer(canvas) {
     const threeD = world.level.render3d === true;
     const map = world.map;
 
-    if (threeD) {
-      drawSky(world);
-      // 兩趟畫完：先畫所有方塊往後延伸的面，再畫所有正面蓋在上面。
-      // 正面永遠離鏡頭最近，所以這個順序就是正確的遮擋關係。
-      for (let y = 0; y < map.length; y++)
-        for (let x = 0; x < map[y].length; x++)
-          if (looksSolid(map[y][x])) drawVoxelBack(map, x, y);
-      for (let y = 0; y < map.length; y++)
-        for (let x = 0; x < map[y].length; x++) {
-          const ch = map[y][x];
-          // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
-          if (ch === '#' || ch === ',') drawVoxelFront(map, x, y);
-          else if (ch === '^' || ch === '/') drawVoxelSpike(x, y, 1);
-          else if (ch === 'v') drawVoxelSpike(x, y, -1);
-        }
-    } else {
-      ctx.fillStyle = C.bg;
-      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-      ctx.fillStyle = C.grid;
-      for (let y = 1; y < 14; y++)
-        for (let x = 1; x < 29; x++)
-          if ((x + y) % 2 === 0) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+    // 地形變了才重建快取(字串比對很便宜,510 個字元而已)
+    const key = (threeD ? '3' : '2') + map.join('');
+    if (key !== terrainKey) {
+      terrainKey = key;
+      ctx = tctx;
+      ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+      if (threeD) {
+        // 兩趟畫完：先畫所有方塊往後延伸的面，再畫所有正面蓋在上面。
+        // 正面永遠離鏡頭最近，所以這個順序就是正確的遮擋關係。
+        for (let y = 0; y < map.length; y++)
+          for (let x = 0; x < map[y].length; x++)
+            if (looksSolid(map[y][x])) drawVoxelBack(map, x, y);
+        for (let y = 0; y < map.length; y++)
+          for (let x = 0; x < map[y].length; x++) {
+            const ch = map[y][x];
+            // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
+            if (ch === '#' || ch === ',') drawVoxelFront(map, x, y);
+            else if (ch === '^' || ch === '/') drawVoxelSpike(x, y, 1);
+            else if (ch === 'v') drawVoxelSpike(x, y, -1);
+          }
+      } else {
+        ctx.fillStyle = C.bg;
+        ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+        ctx.fillStyle = C.grid;
+        for (let y = 1; y < 14; y++)
+          for (let x = 1; x < 29; x++)
+            if ((x + y) % 2 === 0) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
 
-      for (let y = 0; y < map.length; y++)
-        for (let x = 0; x < map[y].length; x++) {
-          const ch = map[y][x];
-          // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
-          if (ch === '#' || ch === ',') drawTile(map, x, y);
-          else if (ch === '^' || ch === '/') drawSpike(x, y, 1);
-          else if (ch === 'v') drawSpike(x, y, -1);
-        }
+        for (let y = 0; y < map.length; y++)
+          for (let x = 0; x < map[y].length; x++) {
+            const ch = map[y][x];
+            // 假地板走 '#' 的畫法、假刺走 '^' 的畫法。像素完全相同，不是近似。
+            if (ch === '#' || ch === ',') drawTile(map, x, y);
+            else if (ch === '^' || ch === '/') drawSpike(x, y, 1);
+            else if (ch === 'v') drawSpike(x, y, -1);
+          }
+      }
+      ctx = screenCtx;
     }
+
+    if (threeD) drawSky(world);
+    ctx.drawImage(terrain, 0, 0);
 
     // 過關瞬間門會亮一下再收回去
     // 假通關必須跟真通關畫得一模一樣，所以兩者共用同一條時間軸。
