@@ -57,6 +57,16 @@ function needsJump(world, lookahead, known) {
   }
   if (apparentSolid(world.map, col + 1, footRow - 1, known)) return true; // 前面有牆或落下的方塊
 
+  // 敵人跟橫著飛過來的東西都看得見。看得見的死亡判定,
+  // 機器人就跟玩家一樣用跳的繞過去——這不是開掛,是視力。
+  // 從天上砸下來的方塊不跳(kind block),那種要用走的閃。
+  for (const t of [...(world.enemies ?? []), ...world.hazards]) {
+    if (t.kind === 'block') continue;
+    if (Math.floor((t.y + t.h) / TILE) !== footRow) continue;
+    const ahead = (t.x + t.w / 2) / TILE - (p.x + p.w / 2) / TILE;
+    if (ahead > 0.3 && ahead <= lookahead + 0.7) return true;
+  }
+
   // 門吊在半空中而且就在附近——跳上去搆它
   return world.door.y + 2 < footRow && Math.abs(world.door.x - col) <= 2;
 }
