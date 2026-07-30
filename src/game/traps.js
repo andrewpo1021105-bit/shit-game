@@ -1,6 +1,29 @@
 import { TILE, MAP_W, MAP_H, DEFAULT_TUNE } from './constants.js';
 import { noteRoute } from './profile.js';
 
+// 敵人的出廠設定。座標從格子換成像素,巡邏邊界也一起換算好,
+// 更新迴圈就不用每幀做單位換算。
+// 三種個性:walker 來回巡邏、charger 看到你就衝、spitter 只射站著不動的人。
+export function makeEnemy(def) {
+  const w = 12, h = 14;
+  return {
+    kind: def.kind,
+    x: def.x * TILE + (TILE - w) / 2,
+    y: def.y * TILE + (TILE - h),
+    w, h,
+    dir: def.dir ?? 1,
+    speed: def.speed ?? 35,
+    min: (def.min ?? def.x - 3) * TILE,
+    max: (def.max ?? def.x + 3) * TILE,
+    sight: (def.sight ?? 9) * TILE,      // charger 的視野
+    range: (def.range ?? 12) * TILE,     // spitter 的射程
+    mode: 'patrol',                      // charger:patrol → dash → tired
+    dashDir: 0,
+    timer: 0,                            // charger 累倒的恢復時間
+    cool: 0,                             // spitter 開火冷卻
+  };
+}
+
 export function createTrapState(traps) {
   const n = traps ? traps.length : 0;
   return {
@@ -235,6 +258,10 @@ export function applyAction(world, action) {
         text: action.text ?? null,
         timer: action.s ?? 0,
       };
+      break;
+    case 'spawnEnemy':
+      // 場上多一隻敵人。檢查用的假世界沒有 enemies 陣列,補一個就好。
+      (world.enemies ??= []).push(makeEnemy(action));
       break;
     case 'noteRoute':
       // 玩家此刻在分界線上方還是下方，決定他走的是哪條路

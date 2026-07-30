@@ -1,5 +1,5 @@
 import { createPlayer, updatePlayer } from './player.js';
-import { createTrapState, checkTriggers, applyAction } from './traps.js';
+import { createTrapState, checkTriggers, applyAction, makeEnemy } from './traps.js';
 import {
   createProfile, noteLanding, noteAttempt, noteApex, noteSpeed,
   noteRestartDelay, noteJumpLead, noteHesitation,
@@ -17,7 +17,7 @@ const LEAD_SCAN = 8;       // 起跳提前量往前掃幾格就放棄
 // ctx.deaths 是「這一關」死了幾次；profile.attempts 是跨關累加的，
 // 拿來當難度依據會被前面的關卡污染，所以另外傳。
 function buildMap(level, profile, ctx) {
-  const base = { traps: level.traps, decoys: level.decoys, tune: null };
+  const base = { traps: level.traps, decoys: level.decoys, enemies: level.enemies, tune: null };
   if (!level.adapt) return { ...base, tiles: level.tiles.slice() };
   const r = level.adapt(level.tiles, profile, ctx);
   // adapt 也可以換掉這條命的陷阱、假門與手感，回傳新的物件而不是改寫關卡本身，
@@ -26,6 +26,7 @@ function buildMap(level, profile, ctx) {
     tiles: r.tiles.slice(),
     traps: r.traps ?? level.traps,
     decoys: r.decoys ?? level.decoys,
+    enemies: r.enemies ?? level.enemies,
     tune: r.tune ?? null,
   };
 }
@@ -36,6 +37,8 @@ function applyBuild(world) {
   world.traps = built.traps ?? [];
   // 假門：長得跟真門一模一樣，碰到就死
   world.decoys = (built.decoys ?? []).map(([x, y]) => ({ x, y }));
+  // 敵人也是每條命重建，跟陷阱一樣不會記得上一條命發生過什麼
+  world.enemies = (built.enemies ?? []).map(makeEnemy);
   world.door = { x: world.level.door[0], y: world.level.door[1] };
   world.player = createPlayer(world.level.spawn[0], world.level.spawn[1]);
   world.trapState = createTrapState(world.traps);
@@ -97,7 +100,7 @@ function updateHazards(world, dt) {
         if (h.seals && world.player.x + world.player.w <= h.x) kill(world);
         continue;
       }
-    } else if (h.kind === 'spike') {
+    } else if (h.kind === 'spike' || h.kind === 'spit') {
       // 撞到牆就消失
       const edge = h.vx < 0 ? h.x : h.x + h.w - 1;
       if (isSolid(world.map, Math.floor(edge / TILE), Math.floor((h.y + h.h / 2) / TILE))) continue;
@@ -107,6 +110,75 @@ function updateHazards(world, dt) {
     alive.push(h);
   }
   world.hazards = alive;
+}
+
+// 敵人的一幀。三種個性,全部確定性——同樣的輸入永遠得到同樣的追殺。
+function updateEnemies(world, dt) {
+  const p = world.player;
+  const px = p.x + p.w / 2;
+  const pRow = Math.floor((p.y + p.h) / TILE);
+
+  for (const e of world.enemies) {
+    const eRow = Math.floor((e.y + e.h) / TILE);
+    const ex = e.x + e.w / 2;
+    const sameRow = p.grounded && pRow === eRow;
+
+    if (e.kind === 'walker') {
+      // 來回巡邏。它不追你、不加速、不假裝——全遊戲最誠實的東西。
+      e.x += e.dir * e.speed * dt;
+      if (e.x <= e.min) { e.x = e.min; e.dir = 1; }
+      if (e.x + e.w >= e.max + TILE) { e.x = e.max + TILE - e.w; e.dir = -1; }
+    } else if (e.kind === 'charger') {
+      if (e.mode === 'patrol') {
+        e.x += e.dir * e.speed * dt;
+        if (e.x <= e.min) { e.x = e.min; e.dir = 1; }
+        if (e.x + e.w >= e.max + TILE) { e.x = e.max + TILE - e.w; e.dir = -1; }
+        // 看到你了。同一列、視野之內,就朝你衝過來。
+        if (sameRow && Math.abs(px - ex) <= e.sight) {
+          e.mode = 'dash';
+          e.dashDir = px < ex ? -1 : 1;
+        }
+      } else if (e.mode === 'dash') {
+        // 衝刺比玩家快,躲不掉的——但它只衝到巡邏邊界就會累倒。
+        // 跳過它的頭頂,或者退出它的地盤,都是零操作精度的活路。
+        e.x += e.dashDir * 165 * dt;
+        if (e.x <= e.min || e.x + e.w >= e.max + TILE) {
+          e.x = Math.max(e.min, Math.min(e.x, e.max + TILE - e.w));
+          e.mode = 'tired';
+          e.timer = 1.2;
+        }
+      } else {
+        // 累倒。這 1.2 秒是它唯一無害的時候。
+        e.timer -= dt;
+        if (e.timer <= 0) e.mode = 'patrol';
+      }
+    } else if (e.kind === 'spitter') {
+      // 砲塔不動,也不主動。它只射一種人:停在它射程裡想事情的人。
+      // 一直走的人永遠不會中彈——這一關考的還是猶豫,不是手速。
+      e.cool = Math.max(0, e.cool - dt);
+      const inRange = sameRow && Math.abs(px - ex) <= e.range;
+      if (inRange && world.idle >= 0.8 && e.cool <= 0) {
+        world.hazards.push({
+          kind: 'spit',
+          x: px < ex ? e.x - 6 : e.x + e.w,
+          y: e.y + 4,
+          w: 6, h: 6,
+          vx: (px < ex ? -1 : 1) * 95,
+          vy: 0, gravity: 0,
+        });
+        e.cool = 1.6;
+        world.events.push('spike');
+      }
+    }
+  }
+}
+
+function enemyHitsPlayer(world) {
+  const p = world.player;
+  for (const e of world.enemies) {
+    if (p.x + p.w > e.x && p.x < e.x + e.w && p.y + p.h > e.y && p.y < e.y + e.h) return true;
+  }
+  return false;
 }
 
 function hazardHitsPlayer(world) {
@@ -323,10 +395,12 @@ export function updateWorld(world, input, dt) {
   if (world.doorLock > 0) world.doorLock = Math.max(0, world.doorLock - dt);
 
   updateHazards(world, dt);
+  updateEnemies(world, dt);
 
   // 假門跟真門長得一樣。碰錯了就死——這是純粹的欺騙，跟操作無關。
   if (touchingDecoy(world)) { kill(world); return; }
   if (hazardHitsPlayer(world)) { kill(world); return; }
+  if (enemyHitsPlayer(world)) { kill(world); return; }
   // 被地形夾住就死。砸下來的方塊落地時會就地變成實心，
   // 如果玩家正站在那一格，等於被壓在方塊裡——這條規則同時涵蓋
   // 所有「憑空長出實心地形」的陷阱。

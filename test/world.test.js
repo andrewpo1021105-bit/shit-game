@@ -464,3 +464,97 @@ test('重生清掉 glitch', () => {
   resetLevel(world);
   assert.equal(world.glitch, null);
 });
+
+// ─── 敵人 ───────────────────────────────────────────────────────
+// 敵人是會動的死亡判定,跟假門一樣碰到就死。三種個性:
+// walker 來回巡邏、charger 看到你就衝過來、spitter 只在你停下來時開火。
+
+function enemyLevel(id, enemies, traps = []) {
+  return {
+    id, name: '測試用',
+    tiles: [
+      '##############################',
+      ...Array(13).fill('#............................#'),
+      '##############################',
+      '##############################',
+      '##############################',
+    ],
+    spawn: [3, 13], door: [24, 12],
+    enemies,
+    traps,
+  };
+}
+
+test('walker 在巡邏範圍內來回走,到邊界就折返', () => {
+  const w = createWorld(enemyLevel(95, [
+    { kind: 'walker', x: 12, y: 13, min: 10, max: 15, speed: 40 },
+  ]));
+  const e = w.enemies[0];
+  assert.ok(e, '世界裡應該有敵人');
+  const x0 = e.x;
+  runTo(w, 0.5, NONE);
+  assert.notEqual(e.x, x0, '敵人應該會動');
+  // 跑很久,永遠不出界
+  for (let i = 0; i < Math.round(10 / PHYSICS_DT); i++) {
+    updateWorld(w, NONE, PHYSICS_DT);
+    assert.ok(e.x >= 10 * TILE - 1 && e.x + e.w <= (15 + 1) * TILE + 1,
+      `敵人跑出巡邏範圍:x=${e.x}`);
+  }
+});
+
+test('碰到敵人就死', () => {
+  const w = createWorld(enemyLevel(94, [
+    { kind: 'walker', x: 7, y: 13, min: 5, max: 12, speed: 30 },
+  ]));
+  runTo(w, 2.0);   // 一直往右走,直直撞上去
+  assert.ok(w.deaths >= 1, `撞到敵人應該死,實際 deaths=${w.deaths}`);
+});
+
+test('charger 看到玩家會衝刺,衝到巡邏邊界會累倒再恢復', () => {
+  const w = createWorld(enemyLevel(93, [
+    { kind: 'charger', x: 18, y: 13, min: 12, max: 21, speed: 30 },
+  ]));
+  const e = w.enemies[0];
+  // 玩家走進視野(4 格內、同一列)
+  runTo(w, 1.35);
+  assert.equal(e.mode, 'dash', `應該在衝刺,實際 mode=${e.mode}`);
+  // 衝刺方向朝著玩家(玩家在左邊)
+  assert.ok(e.dashDir < 0, '應該朝玩家衝');
+});
+
+test('spitter 只在玩家停下來的時候開火', () => {
+  const w = createWorld(enemyLevel(92, [
+    { kind: 'spitter', x: 20, y: 13, dir: -1, range: 14 },
+  ]));
+  // 一直動就永遠不會被射
+  runTo(w, 1.0);
+  assert.equal(w.hazards.length, 0, '玩家在動,砲塔不該開火');
+  // 停下來超過門檻就開火
+  runTo(w, 1.2, NONE);
+  assert.ok(w.hazards.length >= 1, '玩家站著不動,砲塔應該開火');
+  assert.equal(w.hazards[0].kind, 'spit');
+});
+
+test('重生會把敵人放回原位', () => {
+  const w = createWorld(enemyLevel(91, [
+    { kind: 'walker', x: 14, y: 13, min: 10, max: 19, speed: 40 },
+  ]));
+  const x0 = w.enemies[0].x;
+  runTo(w, 1.0, NONE);
+  assert.notEqual(w.enemies[0].x, x0);
+  resetLevel(w);
+  assert.equal(w.enemies[0].x, x0, '重生後敵人要回到原位');
+});
+
+test('spawnEnemy 動作會在場上多一隻敵人', () => {
+  const w = createWorld(enemyLevel(90, [], [
+    {
+      when: { t: 'crossX', x: 10 },
+      do: [{ t: 'spawnEnemy', kind: 'walker', x: 18, y: 13, min: 15, max: 22, speed: 40 }],
+      once: true,
+    },
+  ]));
+  assert.equal(w.enemies.length, 0);
+  runTo(w, 1.5);
+  assert.equal(w.enemies.length, 1, '越線之後應該多一隻敵人');
+});
