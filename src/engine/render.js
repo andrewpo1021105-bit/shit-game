@@ -197,24 +197,44 @@ export function createRenderer(canvas) {
     }
   }
 
-  // 3D 版的刺：灰石尖錐，底座跟牙齒的形狀照抄 2D 版，
-  // 只是換成石頭色再加一個往消失點的影子面——它得跟方塊活在同一個世界。
+  function tri(ax, ay, bx, by, cx2, cy2, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.lineTo(cx2, cy2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 3D 版的刺:三根乾淨的鋼刺插在石座上。
+  // 深色描邊撐出輪廓、右半面吃陰影(光永遠從左邊來)、尖端一點亮——
+  // 遠遠一眼就是「會死」的形狀,而不是一坨灰。
   function drawVoxelSpike(x, y, dir) {
     const px = x * TILE, py = y * TILE;
-    const baseY = dir > 0 ? py + 12 : py;
-    const [bx0, by0] = proj(px, baseY);
-    const [bx1, by1] = proj(px + TILE, baseY);
-    quad(px, baseY, px + TILE, baseY, bx1, by1, bx0, by0, MC.stoneDark);
-    ctx.fillStyle = '#5d5d5d';
-    ctx.fillRect(px, baseY, TILE, 4);
+    const slabY = dir > 0 ? py + 13 : py;
+    const [bx0, by0] = proj(px, dir > 0 ? py + 13 : py + 3);
+    const [bx1, by1] = proj(px + TILE, dir > 0 ? py + 13 : py + 3);
+
+    // 石座的影子面(往消失點)與石座本體
+    quad(px, dir > 0 ? py + 13 : py + 3, px + TILE, dir > 0 ? py + 13 : py + 3, bx1, by1, bx0, by0, '#565a63');
+    ctx.fillStyle = '#4a4e57';
+    ctx.fillRect(px, slabY, TILE, 3);
+    ctx.fillStyle = '#6a707c';
+    ctx.fillRect(px, dir > 0 ? slabY : slabY + 2, TILE, 1);
+
+    const base = dir > 0 ? py + 13 : py + 3;   // 刺的根部貼著石座
+    const tip = dir > 0 ? py + 1 : py + 15;    // 尖端
+    // 兩根寬齒比三根細針有份量——遠看是獠牙,不是釘床
     for (let tooth = 0; tooth < 2; tooth++) {
-      const cx = px + 4 + tooth * 8;
-      for (let r = 0; r < 12; r++) {
-        const w = Math.max(1, Math.round((r / 11) * 6));
-        ctx.fillStyle = r < 3 ? MC.stone : MC.stoneDark;
-        const ry = dir > 0 ? py + 12 - r : py + 3 + r;
-        ctx.fillRect(cx - Math.floor(w / 2), ry, w, 1);
-      }
+      const tx = px + 1 + tooth * 7.5;
+      const mid = tx + 3.25;
+      // 描邊 → 鋼身 → 右半陰影 → 尖端亮點,四層疊出立體
+      tri(tx - 0.75, base, tx + 7.25, base, mid, tip - (dir > 0 ? 1 : -1), '#2e3138');
+      tri(tx + 0.25, base, tx + 6.25, base, mid, tip, '#cfd6e4');
+      tri(mid, tip, tx + 6.25, base, mid, base, '#98a1b3');
+      ctx.fillStyle = '#f4f7ff';
+      ctx.fillRect(mid - 1, dir > 0 ? tip : tip - 1, 1, 2);
     }
   }
 
