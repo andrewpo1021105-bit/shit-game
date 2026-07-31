@@ -113,7 +113,14 @@ const touch = createTouch(canvas, (x, y) => {
     return;
   }
   if (stage === 'story' && !started) { storyAdvance = true; return; }
-  if (!started) { wantStart = true; return; }
+  if (!started) {
+    wantStart = true;
+    // iPhone 規定:聲音必須在使用者手勢的呼叫堆疊裡解鎖。
+    // 這裡是 pointerdown 的當下,正是唯一合法的時機——
+    // 放到遊戲迴圈裡做,手機就整場無聲。
+    audio.startMusic();
+    return;
+  }
   // 結算畫面:點一下就複製戰績,手機沒有 C 鍵
   if (session.phase === 'finished') tapCopy = true;
 });
@@ -151,7 +158,10 @@ window.addEventListener('keydown', (e) => {
     }
     if (pwProgress > 0) return;   // 密碼打到一半,先不開始
   }
-  if (START_KEYS.has(e.code)) wantStart = true;
+  if (START_KEYS.has(e.code)) {
+    wantStart = true;
+    audio.startMusic();   // 鍵盤這一下也是合法的手勢時機
+  }
 });
 
 function step(dt) {
@@ -160,11 +170,10 @@ function step(dt) {
   if (!started) {
     introT += dt;
     if (stage === 'title' && wantStart) {
-      // 標題按下開始→先講序章。音樂順著這個手勢啟動。
+      // 標題按下開始→先講序章(音樂已在手勢事件裡啟動過了)
       wantStart = false;
       stage = 'story';
       storyT = 0;
-      audio.startMusic();
     } else if (stage === 'story') {
       storyT += dt;
       if (storyAdvance) {
@@ -204,6 +213,8 @@ function step(dt) {
   }, dt);
   // BOSS 關與屠龍戰用 BOSS 曲,回到一般關換回決鬥曲(setTrack 同曲時是空操作)
   audio.setTrack(session.world.level.boss || session.phase === 'fight' ? 'boss' : 'duel');
+  // ⚔ 觸控區只在打鬥模式存在
+  touch.attackZone = session.phase === 'fight';
   if (session.phase === 'finished' && !recorded) {
     recorded = true;
     recordRun();

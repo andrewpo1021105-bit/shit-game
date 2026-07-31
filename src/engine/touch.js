@@ -23,6 +23,7 @@ export function createTouch(canvas, onTap) {
   const api = {
     state,
     enabled: false,        // 選了「手機/平板」才會開
+    attackZone: false,     // 撿到劍(打鬥模式)才啟用 ⚔ 區,平常那裡不是按鈕
     pressed: {},           // render 用來把按下去的按鈕畫亮
     restart: false,
     mute: false,
@@ -50,6 +51,8 @@ export function createTouch(canvas, onTap) {
 
   function zoneAt(x, y) {
     for (const [name, z] of Object.entries(ZONES)) {
+      // ⚔ 區只在打鬥模式存在,平常不能當一塊看不見的死區吃掉觸摸
+      if (name === 'attack' && !api.attackZone) continue;
       if (x >= z.x && x < z.x + z.w && y >= z.y && y < z.y + z.h) return name;
     }
     return null;
