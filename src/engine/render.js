@@ -1000,6 +1000,72 @@ export function createRenderer(canvas) {
       ctx.globalAlpha = 1;
     }
 
+    // 迴旋斬:繞著人掃一圈的青色光環
+    if (f.spin > 0 && f.phase === 'play') {
+      const p = f.player;
+      const cx2 = p.x + p.w / 2, cy2 = p.y + p.h / 2;
+      const prog = 1 - f.spin / 0.3;
+      ctx.globalAlpha = Math.min(0.85, f.spin / 0.3 + 0.2);
+      for (let i = 0; i < 10; i++) {
+        const a = prog * 9 + (i / 10) * Math.PI * 2;
+        const r = 26 + i % 2 * 4;
+        ctx.fillStyle = i % 2 ? '#aef2f2' : '#f4f7ff';
+        ctx.fillRect(cx2 + Math.cos(a) * r - 2, cy2 + Math.sin(a) * r * 0.7 - 2, 4, 4);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // 下劈:刀尖朝下的速度線
+    if (f.plunging && f.phase === 'play') {
+      const p = f.player;
+      ctx.fillStyle = 'rgba(244,247,255,0.6)';
+      ctx.fillRect(p.x + 1, p.y - 16, 2, 14);
+      ctx.fillRect(p.x + p.w - 3, p.y - 12, 2, 10);
+      tri(p.x - 2, p.y + p.h, p.x + p.w + 2, p.y + p.h, p.x + p.w / 2, p.y + p.h + 14, '#f4f7ff');
+    }
+
+    // 升龍斬:向上竄的青色殘影
+    if (f.upper > 0 && f.phase === 'play') {
+      const p = f.player;
+      ctx.globalAlpha = Math.min(0.8, f.upper / 0.35 + 0.15);
+      tri(p.x - 6, p.y + p.h, p.x + p.w + 6, p.y + p.h, p.x + p.w / 2, p.y - 30, '#aef2f2');
+      ctx.globalAlpha = 1;
+    }
+
+    // 蓄力提示:長按攻擊時,人身上漸漸亮起金光——放開就是迴旋斬
+    if (f.holdT > 0.3 && f.phase === 'play') {
+      const p = f.player;
+      const g = Math.min(0.5, (f.holdT - 0.3) * 1.2);
+      ctx.fillStyle = `rgba(255,215,94,${g.toFixed(2)})`;
+      ctx.fillRect(p.x - 4, p.y - 6, p.w + 8, p.h + 10);
+    }
+
+    // 技能欄:左下角三格,冷卻用暗罩由上往下退
+    const skills = [
+      { label: '空', cd: 0, max: 1 },                       // 下劈:無冷卻
+      { label: '升', cd: f.upperCd, max: 4 },
+      { label: '旋', cd: f.spinCd, max: 3 },
+    ];
+    skills.forEach((s, i) => {
+      const sx2 = 10 + i * 22, sy2 = VIEW_H - 26;
+      ctx.fillStyle = 'rgba(5,6,10,0.55)';
+      ctx.fillRect(sx2, sy2, 18, 18);
+      ctx.fillStyle = s.cd > 0 ? '#6f779b' : '#ffd75e';
+      ctx.fillRect(sx2, sy2, 18, 1);
+      ctx.fillRect(sx2, sy2 + 17, 18, 1);
+      ctx.fillRect(sx2, sy2, 1, 18);
+      ctx.fillRect(sx2 + 17, sy2, 1, 18);
+      ctx.font = '9px "Microsoft JhengHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = s.cd > 0 ? '#9aa3b5' : '#f4f7ff';
+      ctx.fillText(s.label, sx2 + 9, sy2 + 13);
+      if (s.cd > 0) {
+        ctx.fillStyle = 'rgba(5,6,10,0.65)';
+        ctx.fillRect(sx2 + 1, sy2 + 1, 16, 16 * (s.cd / s.max));
+      }
+      ctx.textAlign = 'left';
+    });
+
     // 氣功彈:圓形的青白能量球,拖著淡出的殘影——火柴人格鬥的招牌
     for (const b of f.beams) {
       const dir2 = b.vx < 0 ? -1 : 1;

@@ -36,7 +36,7 @@ const CHARGE_SPEED = 250;
 const FIREBALL_SPEED = 150;
 const SLASH_CD = 0.42;              // 劍的冷卻:不是按越快越強
 const SLASH_TIME = 0.16;
-const DRAGON_HP = 16;
+const DRAGON_HP = 18;               // 技能變多,牠也長點血,不然一套帶走
 const PLAYER_HP = 4;                // 格鬥遊戲的文法:被打是扣血擊退,不是秒死
 const ROUND_IN = 1.4;               // ROUND N → FIGHT! 的開場讀秒,期間雙方站樁
 
@@ -60,15 +60,25 @@ export function createFight() {
     deaths: 0,
     events: [],
 
-    // 劍與連擊。三段連擊是火柴人格鬥的文法:
-    // 一段、二段是普通斬,0.8 秒內接上第三段會前衝重斬+放出氣功彈。
+    // 劍與連擊。三段連擊:一、二段普通斬,0.8 秒內接上第三段
+    // 會前衝重斬+放出氣功彈。
     slash: 0,
     slashCd: 0,
     chain: 0,        // 連擊段數 0→1→2→3(第三段是重斬)
     chainT: 0,       // 連擊窗口:超時歸零重來
     power: 0,        // 重斬的演出時間(畫大刀光用)
     beams: [],       // 氣功彈 {x, y, w, h, vx}
-    stickman: true,  // 打鬥模式的玩家畫成火柴人劍士(render 讀這個旗子)
+
+    // 技能組。全部用現有按鍵組合,手機不用加鈕:
+    // 空中按攻擊=下劈、按住跳躍再按攻擊=升龍斬、長按攻擊放開=迴旋斬。
+    prevAtk: false,
+    holdT: 0,        // 攻擊鍵按住多久(蓄迴旋斬用)
+    plunging: false, // 下劈中
+    upper: 0,        // 升龍斬演出時間
+    upperHit: false,
+    upperCd: 0,
+    spin: 0,         // 迴旋斬演出時間
+    spinCd: 0,
 
     // 格鬥遊戲的行頭:血量、回合、打擊停頓、無敵時間、火花、連擊
     playerHp: PLAYER_HP,
@@ -294,48 +304,115 @@ export function updateFight(f, input, dt) {
 
   updatePlayer(f.player, f.map, input, dt, DEFAULT_TUNE);
 
-  // 劍與三段連擊。有冷卻——這是節奏遊戲,不是滑鼠連點測試。
+  // 劍、三段連擊與技能。有冷卻——這是節奏遊戲,不是滑鼠連點測試。
+  const p = f.player;
   f.slashCd = Math.max(0, f.slashCd - dt);
   f.slash = Math.max(0, f.slash - dt);
   f.power = Math.max(0, f.power - dt);
+  f.upper = Math.max(0, f.upper - dt);
+  f.upperCd = Math.max(0, f.upperCd - dt);
+  f.spin = Math.max(0, f.spin - dt);
+  f.spinCd = Math.max(0, f.spinCd - dt);
   f.chainT = Math.max(0, f.chainT - dt);
   if (f.chainT <= 0) f.chain = 0;
-  if (input.attack && f.slashCd <= 0) {
-    f.chain += 1;
-    f.chainT = 0.8;
-    f.slash = SLASH_TIME;
-    f.slashCd = SLASH_CD;
-    f.events.push('swing');
-    const p = f.player;
-    const finisher = f.chain >= 3;
-    if (finisher) {
-      // 第三段:前衝重斬。人往前竄一步,刀更長、傷害翻倍,
-      // 順手放出一顆氣功彈——火柴人格鬥的收尾式。
-      f.chain = 0;
-      f.power = 0.2;
-      p.vx = (p.facing < 0 ? -1 : 1) * 240;
-      f.beams.push({
-        x: p.facing < 0 ? p.x - 20 : p.x + p.w + 2,
-        y: p.y + 2,
-        w: 14, h: 14,
-        vx: (p.facing < 0 ? -1 : 1) * 260,
-      });
-      f.events.push('flip');   // 氣功出手的音效:借反轉那個「咻」
-    }
-    const reach = finisher ? 36 : 26;
-    const blade = {
-      x: p.facing < 0 ? p.x - reach : p.x + p.w,
-      y: p.y - 6,
-      w: reach, h: 26,
-    };
-    if (overlap(blade, dragonBox(f.dragon))) {
-      damageDragon(
-        f,
-        p.facing < 0 ? p.x - 14 : p.x + p.w + 14,
-        p.y + 4,
-        finisher ? 2 : 1,
-      );
+
+  const atkEdge = input.attack && !f.prevAtk;
+  const released = !input.attack && f.prevAtk;
+  const heldFor = f.holdT;
+  f.holdT = input.attack ? f.holdT + dt : 0;
+  f.prevAtk = input.attack;
+
+  // 下劈:落地就收招
+  if (f.plunging) {
+    p.vy = Math.max(p.vy, 340);   // 直插而下
+    const under = { x: p.x - 5, y: p.y + p.h, w: p.w + 10, h: 16 };
+    if (overlap(under, dragonBox(f.dragon))) {
+      damageDragon(f, p.x + p.w / 2, p.y + p.h + 8);
+      p.vy = -250;                // 踩著牠彈起來,帥
+      f.plunging = false;
       if (f.won) return;
+    } else if (p.grounded) {
+      f.plunging = false;
+    }
+  }
+
+  // 升龍斬:上升期間掃到就算,一招只算一次
+  if (f.upper > 0 && !f.upperHit) {
+    const above = { x: p.x - 9, y: p.y - 28, w: p.w + 18, h: 32 };
+    if (overlap(above, dragonBox(f.dragon))) {
+      f.upperHit = true;
+      damageDragon(f, p.x + p.w / 2, p.y - 14, 2);
+      if (f.won) return;
+    }
+  }
+
+  // 迴旋斬:長按 0.55 秒放開,360° 掃一圈——順手把火球拍掉
+  if (released && heldFor >= 0.55 && f.spinCd <= 0) {
+    f.spin = 0.3;
+    f.spinCd = 3;
+    f.events.push('flip');
+    const ring = { x: p.x - 30, y: p.y - 18, w: p.w + 60, h: p.h + 34 };
+    f.hazards = f.hazards.filter((h) => !overlap(ring, h));   // 火球拍掉
+    if (overlap(ring, dragonBox(f.dragon))) {
+      damageDragon(f, p.x + p.w / 2 + (p.facing < 0 ? -22 : 22), p.y, 2);
+      if (f.won) return;
+    }
+  }
+
+  if (atkEdge && f.slashCd <= 0) {
+    if (!p.grounded) {
+      // 空中按攻擊=下劈斬。免冷卻的姿態技,考的是你敢不敢跳到牠頭上。
+      f.plunging = true;
+      f.slash = SLASH_TIME;
+      f.slashCd = 0.3;
+      f.events.push('swing');
+    } else if (input.jump && f.upperCd <= 0) {
+      // 按住跳躍再按攻擊=升龍斬。人帶著刀衝天,打到算兩滴。
+      f.upper = 0.35;
+      f.upperHit = false;
+      f.upperCd = 4;
+      p.vy = -330;
+      f.slash = SLASH_TIME;
+      f.slashCd = SLASH_CD;
+      f.events.push('jump');
+      f.events.push('swing');
+    } else {
+      // 地面三段連擊
+      f.chain += 1;
+      f.chainT = 0.8;
+      f.slash = SLASH_TIME;
+      f.slashCd = SLASH_CD;
+      f.events.push('swing');
+      const finisher = f.chain >= 3;
+      if (finisher) {
+        // 第三段:前衝重斬。人往前竄一步,刀更長、傷害翻倍,
+        // 順手放出一顆氣功彈——收尾式。
+        f.chain = 0;
+        f.power = 0.2;
+        p.vx = (p.facing < 0 ? -1 : 1) * 240;
+        f.beams.push({
+          x: p.facing < 0 ? p.x - 20 : p.x + p.w + 2,
+          y: p.y + 2,
+          w: 14, h: 14,
+          vx: (p.facing < 0 ? -1 : 1) * 260,
+        });
+        f.events.push('flip');   // 氣功出手的音效:借反轉那個「咻」
+      }
+      const reach = finisher ? 36 : 26;
+      const blade = {
+        x: p.facing < 0 ? p.x - reach : p.x + p.w,
+        y: p.y - 6,
+        w: reach, h: 26,
+      };
+      if (overlap(blade, dragonBox(f.dragon))) {
+        damageDragon(
+          f,
+          p.facing < 0 ? p.x - 14 : p.x + p.w + 14,
+          p.y + 4,
+          finisher ? 2 : 1,
+        );
+        if (f.won) return;
+      }
     }
   }
 
