@@ -503,7 +503,9 @@ export function createRenderer(canvas) {
       // 踏步：用走過的距離驅動，走得快就踏得快。每 16 像素（一格）換一次腳。
       const walking = p.grounded && Math.abs(p.vx) > 8;
       const bob = walking && Math.floor(Math.abs(p.x) / 16) % 2 === 0 ? -1 : 0;
-      if (threeD) drawSteve(p, bob);
+      // 打鬥模式的玩家是火柴人劍士(world.stickman 旗子),平常是方塊人
+      if (world.stickman) drawStickman(p, world.slash ?? 0, world.time);
+      else if (threeD) drawSteve(p, bob);
       else ctx.drawImage(SPRITES.player, Math.round(p.x - 1), Math.round(p.y - 2) + bob);
     }
 
@@ -765,119 +767,150 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
   }
 
+  // 畫一條有粗細的線段——火柴人的四肢、龍鬚都靠它
+  function limb(x1, y1, x2, y2, color, w = 2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * (w / 2), ny = (dx / len) * (w / 2);
+    quad(x1 + nx, y1 + ny, x2 + nx, y2 + ny, x2 - nx, y2 - ny, x1 - nx, y1 - ny, color);
+  }
+
+  // ── 火柴人劍士 ──────────────────────────────────────────
+  // 打鬥模式的玩家。白圈頭、黑身、青色頭帶飄在腦後——
+  // 跑有跑的腿、跳有跳的腿、揮刀時前臂跟著刀的角度走。
+  function drawStickman(p, slash, time) {
+    const dir = p.facing < 0 ? -1 : 1;
+    const cx = p.x + p.w / 2;
+    const top = p.y - 3;
+    const hipY = p.y + 8;
+    const feetY = p.y + p.h;
+    const body = '#16181f';
+
+    // 腿:地上照步伐剪刀腳,空中收膝
+    const airborne = Math.abs(p.vy) > 8 || !p.grounded;
+    if (airborne) {
+      limb(cx, hipY, cx - dir * 4, feetY - 3, body);
+      limb(cx, hipY, cx + dir * 3, feetY - 1, body);
+    } else if (Math.abs(p.vx) > 8) {
+      const ph = Math.floor(p.x / 9) % 2 === 0 ? 1 : -1;
+      limb(cx, hipY, cx + ph * 4, feetY, body);
+      limb(cx, hipY, cx - ph * 4, feetY, body);
+    } else {
+      limb(cx, hipY, cx - 2, feetY, body);
+      limb(cx, hipY, cx + 2, feetY, body);
+    }
+    // 軀幹
+    limb(cx, top + 8, cx, hipY, body, 3);
+    // 後手:自然垂在身後
+    limb(cx, top + 9, cx - dir * 5, top + 14, body);
+    // 前手:跟著刀的角度(跟 drawSword 同一條公式,劍才會長在手上)
+    const prog = slash > 0 ? 1 - slash / 0.16 : 0;
+    const ang = slash > 0 ? (-70 + 110 * prog) * (Math.PI / 180) : -50 * (Math.PI / 180);
+    const hx = cx + Math.cos(ang) * dir * 7;
+    const hy = top + 10 + Math.sin(ang) * 7;
+    limb(cx, top + 9, hx, hy, body);
+    // 頭:白圈黑心
+    ctx.fillStyle = '#f4f7ff';
+    ctx.fillRect(cx - 4, top - 4, 8, 8);
+    ctx.fillStyle = body;
+    ctx.fillRect(cx - 3, top - 3, 6, 6);
+    ctx.fillStyle = '#f4f7ff';
+    ctx.fillRect(cx + dir, top - 1, 2, 2);   // 眼神看向前方
+    // 頭帶:青色,尾端照時間飄
+    ctx.fillStyle = '#39d0d0';
+    ctx.fillRect(cx - 4, top - 2, 8, 2);
+    const fl = Math.sin(time * 6) * 2;
+    ctx.fillRect(cx - dir * 6, top - 2 + fl, 3, 2);
+    ctx.fillRect(cx - dir * 9, top - 1 - fl, 3, 2);
+  }
+
   // ── 龍 ────────────────────────────────────────────────
-  // 方塊拼的巨龍。狀態全寫在姿勢上:張嘴=要吐火、壓低=要衝、
-  // 喘氣=你的回合。快打旋風的規矩:每一招都先講,躲不掉是你的事。
-  // 會呼吸、翅膀會搧、蓄力時嘴裡有火光——牠是主角級的敵人,要有排場。
+  // 東方長龍:一節一節的蛇身沿著波浪起伏、鹿角、龍鬚、金腹鱗。
+  // 狀態全寫在姿勢上:張嘴=要吐火、壓平貼地=要衝、垂頭=你的回合。
+  // 快打旋風的規矩:每一招都先講,躲不掉是你的事。
   function drawDragon(d, won, wonT, time = 0) {
     const flat = d.state === 'charge';
-    const breathe = flat ? 0 : Math.sin(time * 2.2) * 1.6;
     const x = Math.round(d.x);
-    const h = flat ? 24 : d.h;
-    const y = Math.round((flat ? 14 * TILE - 24 : d.y) + breathe);
     const dir = d.face;
     const hit = d.flash > 0;
     const alpha = won ? Math.max(0.15, 1 - wonT * 0.4) : 1;
     ctx.globalAlpha = alpha;
 
+    const bodyC = hit ? '#ffe0d0' : '#a83226';
+    const darkC = hit ? '#ffc9b0' : '#7a1c1c';
+    const bellyC = hit ? '#fff0d0' : '#e8c46a';
+    const baseY = flat ? 14 * TILE - 14 : d.y + 20;
+    const amp = flat ? 2 : 9;                       // 蛇身波浪的振幅,衝撞時壓平
+    const mouthOpen = d.state === 'aim' || d.state === 'fire' || d.swipeT >= 0;
+    const droop = d.state === 'tired' ? 10 : 0;     // 喘氣時整顆頭垂下來
+
     // 衝撞的速度線
     if (flat) {
-      ctx.fillStyle = 'rgba(255,138,42,0.35)';
+      ctx.fillStyle = 'rgba(255,138,42,0.4)';
       for (let i = 1; i <= 3; i++) {
-        ctx.fillRect(x + (d.chargeDir < 0 ? d.w + i * 10 : -i * 10 - 8), y + 4 + i * 5, 10, 2);
+        ctx.fillRect(x + (d.chargeDir < 0 ? d.w + i * 10 : -i * 10 - 8), baseY - 6 + i * 5, 12, 2);
       }
     }
 
-    // 後翅(遠側,深色)+ 前翅(近側)——兩層才有厚度,翅膀照時間搧
-    const flap = flat ? 0 : Math.sin(time * 3.1) * 8;
-    if (!flat) {
-      const wx = x + d.w / 2;
-      tri(wx - 6, y + 6, wx - 34, y - 22 - flap, wx - 10, y + 2, '#3f0e0e');
-      quad(wx - 34, y - 22 - flap, wx - 22, y - 26 - flap, wx - 4, y + 2, wx - 10, y + 4, '#2a0c0c');
-      tri(wx + 2, y + 6, wx + 34, y - 26 + flap, wx + 8, y + 2, '#5c1414');
-      quad(wx + 34, y - 26 + flap, wx + 20, y - 30 + flap, wx + 2, y + 2, wx + 8, y + 4, '#40100f');
-    }
-
-    // 身體:主色+鱗片紋(兩排交錯的深色小塊)
-    ctx.fillStyle = hit ? '#ffe0d0' : '#7a1c1c';
-    ctx.fillRect(x, y, d.w, h);
-    ctx.fillStyle = hit ? '#ffc9b0' : '#5c1414';
-    ctx.fillRect(x, y, d.w, 5);
-    if (!hit) {
-      ctx.fillStyle = '#671717';
-      for (let i = 0; i < 6; i++) {
-        ctx.fillRect(x + 6 + i * 12, y + 12, 6, 4);
-        ctx.fillRect(x + 12 + i * 12, y + 20, 6, 4);
+    // 蛇身:9 節,從尾巴畫到脖子,每一節沿著波浪起伏、越尾越細。
+    // 波浪吃 time,牠站著不動也一直在游——長龍就是要一直在動。
+    const headX = dir < 0 ? x + 8 : x + d.w - 8;
+    const segs = 9;
+    for (let i = segs - 1; i >= 0; i--) {
+      const sx = headX - dir * (10 + i * 7.4);
+      const sy = baseY + Math.sin(time * 2.6 + i * 0.85) * amp * (i < 2 ? 0.4 : 1);
+      const r = i === segs - 1 ? 4 : 9 - i * 0.55;   // 尾端收細
+      ctx.fillStyle = i % 2 === 0 ? bodyC : (hit ? '#ffd9c4' : '#93281f');
+      ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+      // 金腹鱗
+      ctx.fillStyle = bellyC;
+      ctx.fillRect(sx - r + 2, sy + r - 4, r * 2 - 4, 3);
+      // 背鰭:每一節一片小三角,跟著波浪走
+      if (i > 0 && i < segs - 1) {
+        tri(sx - 4, sy - r + 1, sx + 4, sy - r + 1, sx, sy - r - 7, hit ? '#ffc9b0' : '#e0563c');
       }
     }
-    // 肚甲:一節一節的板子,不是一條顏色
-    for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = i % 2 === 0 ? '#d8b26a' : '#c2a05e';
-      ctx.fillRect(x + 5 + i * 11, y + h - 8, 10, 6);
-    }
-    // 背刺:帶描邊的獠牙排
-    for (let i = 0; i < 5; i++) {
-      const sx = x + 8 + i * 14;
-      tri(sx - 1, y + 1, sx + 11, y + 1, sx + 5, y - (flat ? 5 : 11) - 1, '#2a0c0c');
-      tri(sx + 1, y + 1, sx + 9, y + 1, sx + 5, y - (flat ? 4 : 9), '#a94a2c');
-    }
-    // 四條腿(衝撞時縮起來)
-    if (!flat) {
-      ctx.fillStyle = '#671717';
-      for (const lx of [8, 24, d.w - 30, d.w - 14]) {
-        ctx.fillRect(x + lx, y + h - 2, 8, 6);
-        ctx.fillStyle = '#e8e0d0';
-        ctx.fillRect(x + lx, y + h + 2, 3, 2);   // 爪
-        ctx.fillStyle = '#671717';
-      }
-    }
+    // 尾端的尾鰭:三叉,像一把小扇子
+    const tailX = headX - dir * (10 + segs * 7.4);
+    const tailY = baseY + Math.sin(time * 2.6 + segs * 0.85) * amp;
+    const swipeUp = d.swipeT >= 0 && d.swipeT < 0.4;
+    const tY = swipeUp ? tailY - 18 : tailY;
+    tri(tailX, tY, tailX - dir * 14, tY - 10, tailX - dir * 8, tY, '#e0563c');
+    tri(tailX, tY, tailX - dir * 16, tY, tailX - dir * 8, tY + 2, '#c9432e');
+    tri(tailX, tY, tailX - dir * 14, tY + 10, tailX - dir * 8, tY + 4, '#a83226');
 
-    // 脖子+頭:比身體高一階,才有俯視你的氣勢
-    const hx = dir < 0 ? x - 26 : x + d.w + 2;
-    const hy = y - (flat ? 2 : 16);
-    ctx.fillStyle = hit ? '#ffe0d0' : '#7a1c1c';
-    // 脖子
-    quad(
-      dir < 0 ? x + 2 : x + d.w - 2, y + 2,
-      dir < 0 ? x + 14 : x + d.w - 14, y + 12,
-      dir < 0 ? hx + 20 : hx + 4, hy + 16,
-      dir < 0 ? hx + 24 : hx, hy + 6,
-      hit ? '#ffe0d0' : '#7a1c1c',
-    );
-    // 頭殼
-    ctx.fillRect(hx, hy, 26, 16);
-    // 下顎(張嘴時掉下來)
-    const mouthOpen = d.state === 'aim' || d.state === 'fire' || d.swipeT >= 0;
-    ctx.fillStyle = hit ? '#ffc9b0' : '#671717';
-    ctx.fillRect(dir < 0 ? hx - 4 : hx + 12, hy + 12 + (mouthOpen ? 6 : 2), 18, 5);
-    // 嘴裡的火光:蓄力時亮起來——「要吐了」的告示
+    // 頭:方吻、上揚的眉骨——東方龍的臉是「長」的
+    const hx = dir < 0 ? x - 20 : x + d.w - 8;
+    const hy = baseY - 14 + droop + (flat ? 6 : Math.sin(time * 2.6 + 0.4) * 3);
+    ctx.fillStyle = bodyC;
+    ctx.fillRect(hx, hy, 28, 14);                          // 頭殼
+    ctx.fillStyle = darkC;
+    ctx.fillRect(dir < 0 ? hx - 8 : hx + 20, hy + 4, 16, 10);   // 吻部
+    // 下顎:張嘴時掉下來,嘴裡有火光
+    ctx.fillStyle = darkC;
+    ctx.fillRect(dir < 0 ? hx - 8 : hx + 18, hy + 12 + (mouthOpen ? 6 : 2), 18, 4);
     if (mouthOpen) {
       ctx.fillStyle = Math.floor(time * 10) % 2 ? '#ff8a2a' : '#ffd75e';
-      ctx.fillRect(dir < 0 ? hx - 2 : hx + 14, hy + 12, 12, 6);
+      ctx.fillRect(dir < 0 ? hx - 6 : hx + 20, hy + 12, 14, 6);
     }
-    // 鼻孔的煙(休息時兩縷,確定性飄)
-    if (d.state === 'rest' && !won) {
-      ctx.fillStyle = 'rgba(60,60,66,0.5)';
-      const sm = Math.floor(time * 3) % 3;
-      ctx.fillRect((dir < 0 ? hx - 4 : hx + 26) + (dir < 0 ? -sm : sm), hy + 2 - sm * 3, 3, 3);
-    }
-    // 雙角:白骨色,一長一短
-    ctx.fillStyle = '#e8e0d0';
-    tri(dir < 0 ? hx + 18 : hx + 8, hy, dir < 0 ? hx + 24 : hx + 2, hy, dir < 0 ? hx + 26 : hx, hy - 12, '#e8e0d0');
-    tri(dir < 0 ? hx + 12 : hx + 12, hy, dir < 0 ? hx + 16 : hx + 8, hy, dir < 0 ? hx + 17 : hx + 7, hy - 7, '#d8d0c0');
-    // 眼睛:平常黃燈瞇著,喘氣變灰,挨打瞬間全白吃掉
+    // 鹿角:主枝+分岔,兩支——龍的身分證
+    const ax0 = dir < 0 ? hx + 18 : hx + 4;
+    tri(ax0, hy, ax0 + 4, hy, ax0 + 2 - dir * 8, hy - 16, '#e8e0d0');
+    tri(ax0 + 1 - dir * 4, hy - 8, ax0 + 3 - dir * 4, hy - 8, ax0 - dir * 12, hy - 12, '#d8d0c0');
+    const ax1 = dir < 0 ? hx + 10 : hx + 12;
+    tri(ax1, hy, ax1 + 3, hy, ax1 + 1 - dir * 6, hy - 11, '#d8d0c0');
+    // 龍鬚:兩根細長的觸鬚,往前飄
+    const wy = hy + 9;
+    const wx = dir < 0 ? hx - 8 : hx + 36;
+    limb(wx, wy, wx + dir * 12, wy + 4 + Math.sin(time * 4) * 2, '#ffd75e', 1.4);
+    limb(wx, wy + 3, wx + dir * 10, wy + 9 + Math.sin(time * 4 + 1) * 2, '#ffd75e', 1.4);
+    // 眼睛:平常金燈,喘氣變灰
     ctx.fillStyle = d.state === 'tired' ? '#555' : '#ffd75e';
-    ctx.fillRect(dir < 0 ? hx + 6 : hx + 16, hy + 5, 6, 3);
+    ctx.fillRect(dir < 0 ? hx + 6 : hx + 16, hy + 3, 6, 3);
     ctx.fillStyle = '#101218';
-    ctx.fillRect(dir < 0 ? hx + 8 : hx + 18, hy + 5, 2, 3);
-
-    // 尾巴:兩節,尾端一個矛尖;尾擊預備時高高翹起
-    const tx0 = dir < 0 ? x + d.w : x;
-    const swipeUp = d.swipeT >= 0 && d.swipeT < 0.4;
-    const tipX = tx0 + (dir < 0 ? 34 : -34);
-    const tipY = swipeUp ? y - 16 : y + h - 30 + Math.sin(time * 2.6) * 3;
-    tri(tx0, y + h - 12, tipX, tipY + 8, tx0, y + h - 2, '#671717');
-    tri(tipX + (dir < 0 ? -4 : 4), tipY + 10, tipX + (dir < 0 ? 10 : -10), tipY + 2, tipX + (dir < 0 ? 2 : -2), tipY - 6, '#a94a2c');
+    ctx.fillRect(dir < 0 ? hx + 8 : hx + 18, hy + 3, 2, 3);
+    // 鬃毛:頭後緣一撮火焰色
+    tri(dir < 0 ? hx + 28 : hx, hy + 2, dir < 0 ? hx + 28 : hx, hy + 12, dir < 0 ? hx + 38 : hx - 10, hy + 4, '#e0563c');
 
     ctx.globalAlpha = 1;
   }
@@ -951,33 +984,36 @@ export function createRenderer(canvas) {
     const blinkNow = f.invuln > 0 && Math.floor(f.invuln * 16) % 2 === 0;
     if (f.phase === 'play' && !blinkNow) drawSword(f.player, f.slash);
 
-    // 劍光:揮刀時的白弧殘影
+    // 劍光:揮刀時的白弧殘影;第三段重斬的弧更大、帶青色
     if (f.slash > 0 && f.phase === 'play') {
       const p = f.player;
       const dir = p.facing < 0 ? -1 : 1;
-      const sx = dir < 0 ? p.x - 26 : p.x + p.w;
+      const reach = f.power > 0 ? 38 : 26;
+      const sx = dir < 0 ? p.x - reach : p.x + p.w;
       ctx.globalAlpha = Math.min(0.8, f.slash / 0.16 + 0.1);
-      tri(sx + (dir < 0 ? 26 : 0), p.y - 8, sx + (dir < 0 ? 26 : 0), p.y + 20, sx + (dir < 0 ? 0 : 26), p.y + 6, '#f4f7ff');
+      tri(
+        sx + (dir < 0 ? reach : 0), p.y - (f.power > 0 ? 14 : 8),
+        sx + (dir < 0 ? reach : 0), p.y + 20,
+        sx + (dir < 0 ? 0 : reach), p.y + 6,
+        f.power > 0 ? '#aef2f2' : '#f4f7ff',
+      );
       ctx.globalAlpha = 1;
     }
 
-    // 劍氣:白藍色的飛行月牙,發著光——每第三刀的獎勵
+    // 氣功彈:圓形的青白能量球,拖著淡出的殘影——火柴人格鬥的招牌
     for (const b of f.beams) {
-      const dir = b.vx < 0 ? -1 : 1;
-      ctx.fillStyle = 'rgba(160,220,255,0.35)';
-      ctx.fillRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6);
-      tri(
-        b.x + (dir < 0 ? b.w : 0), b.y - 2,
-        b.x + (dir < 0 ? b.w : 0), b.y + b.h + 2,
-        b.x + (dir < 0 ? -4 : b.w + 4), b.y + b.h / 2,
-        '#e8f6ff',
-      );
-      tri(
-        b.x + (dir < 0 ? b.w - 6 : 6), b.y,
-        b.x + (dir < 0 ? b.w - 6 : 6), b.y + b.h,
-        b.x + (dir < 0 ? 0 : b.w), b.y + b.h / 2,
-        '#8fc6ff',
-      );
+      const dir2 = b.vx < 0 ? -1 : 1;
+      const cx3 = b.x + b.w / 2, cy3 = b.y + b.h / 2;
+      for (let i = 1; i <= 3; i++) {
+        ctx.fillStyle = `rgba(88,200,220,${(0.3 - i * 0.08).toFixed(2)})`;
+        ctx.fillRect(cx3 - dir2 * i * 8 - 5, cy3 - 5, 10, 10);
+      }
+      ctx.fillStyle = 'rgba(120,230,240,0.5)';
+      ctx.fillRect(cx3 - 9, cy3 - 9, 18, 18);
+      ctx.fillStyle = '#39d0d0';
+      ctx.fillRect(cx3 - 7, cy3 - 7, 14, 14);
+      ctx.fillStyle = '#d8ffff';
+      ctx.fillRect(cx3 - 4, cy3 - 4, 8, 8);
     }
 
     // 命中火花:八方迸射的星芒,黃白相間——街機的打點就長這樣

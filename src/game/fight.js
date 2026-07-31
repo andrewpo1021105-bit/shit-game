@@ -60,11 +60,15 @@ export function createFight() {
     deaths: 0,
     events: [],
 
-    // 劍
+    // 劍與連擊。三段連擊是火柴人格鬥的文法:
+    // 一段、二段是普通斬,0.8 秒內接上第三段會前衝重斬+放出氣功彈。
     slash: 0,
     slashCd: 0,
-    swingCount: 0,   // 每第三刀會放出劍氣——見 beams
-    beams: [],       // 劍氣飛行道具 {x, y, w, h, vx}
+    chain: 0,        // 連擊段數 0→1→2→3(第三段是重斬)
+    chainT: 0,       // 連擊窗口:超時歸零重來
+    power: 0,        // 重斬的演出時間(畫大刀光用)
+    beams: [],       // 氣功彈 {x, y, w, h, vx}
+    stickman: true,  // 打鬥模式的玩家畫成火柴人劍士(render 讀這個旗子)
 
     // 格鬥遊戲的行頭:血量、回合、打擊停頓、無敵時間、火花、連擊
     playerHp: PLAYER_HP,
@@ -145,11 +149,11 @@ function hurt(f, fromX) {
   if (f.playerHp <= 0) die(f);
 }
 
-// 龍受一點傷:白閃、火花、連擊、打擊停頓,一條龍服務
-function damageDragon(f, hitX, hitY) {
-  f.dragon.hp -= 1;
+// 龍受傷:白閃、火花、連擊、打擊停頓,一條龍服務。重斬傷害翻倍。
+function damageDragon(f, hitX, hitY, dmg = 1) {
+  f.dragon.hp -= dmg;
   f.dragon.flash = 0.22;
-  f.hitstop = 0.09;
+  f.hitstop = dmg > 1 ? 0.14 : 0.09;   // 重斬的停頓更長,那一下要「重」
   f.combo += 1;
   f.comboT = 2.2;
   f.spark = { x: hitX, y: hitY, t: 0.18 };
@@ -290,38 +294,48 @@ export function updateFight(f, input, dt) {
 
   updatePlayer(f.player, f.map, input, dt, DEFAULT_TUNE);
 
-  // 劍。有冷卻——這是節奏遊戲,不是滑鼠連點測試。
+  // 劍與三段連擊。有冷卻——這是節奏遊戲,不是滑鼠連點測試。
   f.slashCd = Math.max(0, f.slashCd - dt);
   f.slash = Math.max(0, f.slash - dt);
+  f.power = Math.max(0, f.power - dt);
+  f.chainT = Math.max(0, f.chainT - dt);
+  if (f.chainT <= 0) f.chain = 0;
   if (input.attack && f.slashCd <= 0) {
+    f.chain += 1;
+    f.chainT = 0.8;
     f.slash = SLASH_TIME;
     f.slashCd = SLASH_CD;
-    f.swingCount += 1;
     f.events.push('swing');
     const p = f.player;
+    const finisher = f.chain >= 3;
+    if (finisher) {
+      // 第三段:前衝重斬。人往前竄一步,刀更長、傷害翻倍,
+      // 順手放出一顆氣功彈——火柴人格鬥的收尾式。
+      f.chain = 0;
+      f.power = 0.2;
+      p.vx = (p.facing < 0 ? -1 : 1) * 240;
+      f.beams.push({
+        x: p.facing < 0 ? p.x - 20 : p.x + p.w + 2,
+        y: p.y + 2,
+        w: 14, h: 14,
+        vx: (p.facing < 0 ? -1 : 1) * 260,
+      });
+      f.events.push('flip');   // 氣功出手的音效:借反轉那個「咻」
+    }
+    const reach = finisher ? 36 : 26;
     const blade = {
-      x: p.facing < 0 ? p.x - 26 : p.x + p.w,
+      x: p.facing < 0 ? p.x - reach : p.x + p.w,
       y: p.y - 6,
-      w: 26, h: 26,
+      w: reach, h: 26,
     };
     if (overlap(blade, dragonBox(f.dragon))) {
       damageDragon(
         f,
         p.facing < 0 ? p.x - 14 : p.x + p.w + 14,
         p.y + 4,
+        finisher ? 2 : 1,
       );
       if (f.won) return;
-    }
-    // 每第三刀,劍會放出一道劍氣——遠程的那一下。
-    // 固定節奏,不是隨機:你可以算著用它。
-    if (f.swingCount % 3 === 0) {
-      f.beams.push({
-        x: p.facing < 0 ? p.x - 20 : p.x + p.w + 2,
-        y: p.y + 2,
-        w: 18, h: 10,
-        vx: (p.facing < 0 ? -1 : 1) * 260,
-      });
-      f.events.push('flip');   // 劍氣出手的音效:借反轉那個「咻」
     }
   }
 
