@@ -5,8 +5,8 @@ import { createFight, updateFight } from './fight.js';
 // 轉場時間軸（秒）
 export const CLEAR_HOLD = 1.4;        // CLEAR! 畫面停留多久才開始轉場
 export const SWEEP_IN = 0.5;          // 黑幕由上往下蓋滿
-export const REVEAL_AT = 1.6;         // 開始掀開，此刻換成下一關
-export const TRANSITION_TIME = 2.1;   // 轉場總長
+export const REVEAL_AT = 2.4;         // 開始掀開，此刻換成下一關——留給劇情讀完的時間
+export const TRANSITION_TIME = 2.9;   // 轉場總長
 
 export function createSession(levels) {
   const profile = createProfile();

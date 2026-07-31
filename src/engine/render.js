@@ -1462,6 +1462,23 @@ export function createRenderer(canvas) {
     // drawWorld 不必認識 session
     session.world.hudTime = session.totalTime;
     drawWorld(session.world, shake);
+
+    // 轉場太快讀不完的劇情,進關後的前六秒留在畫面頂端慢慢淡出。
+    // 只在第一條命顯示——死過的人已經讀過了,不用再煩他。
+    const w = session.world;
+    if (session.phase === 'play' && w.level.story && w.deaths === 0 && w.time < 6) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = clamp01((6 - w.time) / 1.2);
+      ctx.fillStyle = 'rgba(5,6,10,0.68)';
+      ctx.fillRect(36, 18, VIEW_W - 72, 17);
+      ctx.font = '10px "Microsoft JhengHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#d8dae6';
+      ctx.fillText(w.level.story, VIEW_W / 2, 30);
+      ctx.textAlign = 'left';
+      ctx.globalAlpha = 1;
+    }
+
     if (session.phase === 'transition') drawTransition(session);
   }
 
