@@ -91,12 +91,14 @@ function recordRun() {
     .catch(() => { session.boardStatus = 'offline'; });
 }
 
-// 開場分三頁:先問你用什麼裝置(ask)→ 標題畫面(title)→ 遊戲。
-// 手機/平板選下去就開觸控按鈕;計時一樣從真正開始的那一刻才跑。
-let stage = 'ask';           // 'ask' | 'title'
+// 開場分四頁:先問裝置(ask)→ 標題(title)→ 序章故事(story)→ 遊戲。
+// 手機/平板選下去就開觸控按鈕;計時從真正開始的那一刻才跑。
+let stage = 'ask';           // 'ask' | 'title' | 'story'
 let mobileMode = false;
 let started = false;
 let introT = 0;
+let storyT = 0;
+let storyAdvance = false;
 let tapCopy = false;
 
 // 這台裝置看起來有沒有觸控——只拿來把建議的按鈕框亮,不替使用者決定
@@ -110,6 +112,7 @@ const touch = createTouch(canvas, (x, y) => {
     else if (hit(ASK.desktop)) { mobileMode = false; stage = 'title'; }
     return;
   }
+  if (stage === 'story' && !started) { storyAdvance = true; return; }
   if (!started) { wantStart = true; return; }
   // 結算畫面:點一下就複製戰績,手機沒有 C 鍵
   if (session.phase === 'finished') tapCopy = true;
@@ -132,6 +135,11 @@ window.addEventListener('keydown', (e) => {
     stage = 'title';
     return;
   }
+  // 序章:第一下快轉打字,第二下上路
+  if (stage === 'story') {
+    storyAdvance = true;
+    return;
+  }
   const ch = e.key.length === 1 ? e.key.toUpperCase() : null;
   if (ch) {
     pwProgress = PASSWORD[pwProgress] === ch ? pwProgress + 1 : (PASSWORD[0] === ch ? 1 : 0);
@@ -152,9 +160,21 @@ function step(dt) {
   if (!started) {
     introT += dt;
     if (stage === 'title' && wantStart) {
-      started = true;
-      // 瀏覽器規定要有使用者手勢才准出聲——開始遊戲的這一下正好
+      // 標題按下開始→先講序章。音樂順著這個手勢啟動。
+      wantStart = false;
+      stage = 'story';
+      storyT = 0;
       audio.startMusic();
+    } else if (stage === 'story') {
+      storyT += dt;
+      if (storyAdvance) {
+        storyAdvance = false;
+        if (storyT < renderer.drawPrologue.TIME) {
+          storyT = renderer.drawPrologue.TIME;   // 第一下:快轉到全部顯示
+        } else {
+          started = true;                        // 第二下:上路
+        }
+      }
     }
     input.consumeRestart();   // 開場按 R 不該累積成遊戲裡的重來
     touch.consumeRestart();
@@ -208,6 +228,7 @@ function step(dt) {
 
 function render() {
   if (stage === 'ask') { renderer.drawAsk(introT, touchy); return; }
+  if (stage === 'story' && !started) { renderer.drawPrologue(storyT); return; }
   if (!started) { renderer.drawIntro(introT, creatorMode, mobileMode); return; }
   session.world.creator = creatorMode;   // HUD 要畫創造者徽章
   renderer.draw(session, shake);

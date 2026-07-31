@@ -1244,6 +1244,44 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
   }
 
+  // ── 開場序章 ──────────────────────────────────────────
+  // 標題畫面按下開始之後,先講這一段。它的第一句謊話就在裡面。
+  const PROLOGUE = [
+    ['你醒來的時候,天空藍得不太對勁。', '#d8dae6'],
+    ['草太綠,雲太白,太陽掛得端端正正——', '#d8dae6'],
+    ['像有人照著《快樂遊戲》的說明書,拼出來的世界。', '#d8dae6'],
+    ['然後,你聽見它的聲音:', '#9aa3b5'],
+    ['「歡迎。往右走就好,這裡什麼都不會傷害你。」', '#8fd6a0'],
+    ['它在說謊。', '#e04b4b'],
+    ['十七道門之後,牠在等。', '#ffd75e'],
+  ];
+  // 每行開始打字的時間點與序章總長,main.js 拿去判斷「演完了沒」
+  const PROLOGUE_STEP = 0.55;
+  const PROLOGUE_TIME = 0.4 + PROLOGUE.length * PROLOGUE_STEP + 0.4;
+
+  function drawPrologue(t) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = C.void;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    ctx.textAlign = 'center';
+    ctx.font = '12px "Microsoft JhengHei", sans-serif';
+    PROLOGUE.forEach(([line, color], i) => {
+      const start = 0.4 + i * PROLOGUE_STEP;
+      if (t < start) return;
+      ctx.fillStyle = color;
+      ctx.fillText(typed(line, t, start, 0.45), VIEW_W / 2, 62 + i * 22);
+    });
+
+    if (t > PROLOGUE_TIME && Math.floor(t * 1.6) % 2 === 0) {
+      ctx.font = '10px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = C.ui;
+      ctx.fillText('按 任 意 鍵 上 路', VIEW_W / 2, VIEW_H - 20);
+    }
+    ctx.textAlign = 'left';
+  }
+  drawPrologue.TIME = PROLOGUE_TIME;
+
   // 轉場：黑幕由上往下蓋滿 → 分析你 → 由上往下掀開露出下一關
   function drawTransition(session) {
     const t = session.timer;
@@ -1291,12 +1329,20 @@ export function createRenderer(canvas) {
     const pop = clamp01((t - SWEEP_IN) / 0.3);
     ctx.font = `bold ${Math.round(10 + 14 * pop)}px Consolas, monospace`;
     ctx.fillStyle = C.scan;
-    ctx.fillText(`LEVEL ${next.id}`, cx, cy - 6);
+    ctx.fillText(`LEVEL ${next.id}`, cx, cy - 10);
 
-    if (next.announce) {
+    // 每一關的入場劇情:那個「它」的旁白,一個字一個字打出來
+    const line = next.story ?? next.announce;
+    if (line) {
       ctx.font = '11px "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#d8dae6';
-      ctx.fillText(typed(next.announce, t, SWEEP_IN + 0.3, 0.45), cx, cy + 16);
+      ctx.fillText(typed(line, t, SWEEP_IN + 0.25, 0.6), cx, cy + 14);
+    }
+    // 有狠話要放的關卡(announce),劇情底下再補一行紅的
+    if (next.story && next.announce) {
+      ctx.font = 'bold 10px "Microsoft JhengHei", sans-serif';
+      ctx.fillStyle = C.uiHot;
+      ctx.fillText(typed(next.announce, t, SWEEP_IN + 0.7, 0.3), cx, cy + 32);
     }
     ctx.textAlign = 'left';
   }
@@ -1420,5 +1466,5 @@ export function createRenderer(canvas) {
 
   resize();
   window.addEventListener('resize', resize);
-  return { resize, draw, drawIntro, drawAsk, drawTouchButtons };
+  return { resize, draw, drawIntro, drawAsk, drawTouchButtons, drawPrologue };
 }
