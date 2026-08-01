@@ -2,6 +2,11 @@
 # 這個排程每天去讀一次幫它續命,順手把內容備份進 repo。
 # 倉庫真的死了就開一個新的、灌回備份、改寫 board-url.js 再推上去,
 # Pages 會自動重新部署,玩家最多損失「死掉到自癒之間」的新成績。
+#
+# 它同時也是排行榜唯一的守門員。這張榜沒有伺服器,前端那道
+# MIN_BOARD_TIME 門檻只擋得住跑新版的人——舊分頁、已經下載的單檔版
+# 都還是送得進來,而且我們永遠沒辦法叫他們更新。所以每天掃一次,
+# 低於門檻的成績直接從榜上拿掉。
 name: keep-leaderboard-alive
 
 on:
@@ -18,14 +23,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 續命、備份,必要時自癒
+      - name: 續命、清理、備份,必要時自癒
         run: |
           set -e
           URL=$(grep -o 'https://jsonblob.com/api/jsonBlob/[0-9a-f-]*' src/engine/board-url.js)
+          # 門檻只有 constants.js 那一份,這裡讀它而不是另外寫一個數字——
+          # 兩邊各寫一個遲早會不一樣,而不一樣的那天沒有人會發現
+          MIN=$(grep -oE 'MIN_BOARD_TIME = [0-9]+' src/game/constants.js | grep -oE '[0-9]+$')
+          test -n "$MIN"
           git config user.name "board-bot"
           git config user.email "actions@github.com"
 
-          if curl -sf "$URL" -H 'Accept: application/json' -o board-backup.json; then
+          if curl -sf "$URL" -H 'Accept: application/json' -o live.json; then
+            if jq -e 'type == "array"' live.json > /dev/null; then
+              # 掃掉低於門檻的成績。比的是筆數不是位元組——jq 會重排格式,
+              # 拿位元組比會每天都判定「有變」,然後每天無謂地覆寫線上資料
+              BEFORE=$(jq length live.json)
+              jq -c --argjson min "$MIN" 'map(select(.time >= $min))' live.json > board-backup.json
+              AFTER=$(jq length board-backup.json)
+              if [ "$BEFORE" -ne "$AFTER" ]; then
+                echo "掃掉 $((BEFORE - AFTER)) 筆低於 $MIN 秒的成績"
+                curl -sf -X PUT "$URL" -H 'Content-Type: application/json' \
+                  --data @board-backup.json > /dev/null
+              fi
+            else
+              # 榜的內容長得不像榜。這時候最該保住的是「上一份還正常的備份」——
+              # 把垃圾覆蓋上去,等於連自癒時能還原的東西都一起弄丟了。
+              # 所以不寫回線上、也不動備份,只留下紀錄等人來看。
+              echo "警告:線上內容不是陣列,備份與線上都不動" >&2
+              cat live.json >&2
+            fi
+            rm -f live.json
             git add board-backup.json
             git diff --cached --quiet || git commit -m "chore: 排行榜每日備份"
             git push
