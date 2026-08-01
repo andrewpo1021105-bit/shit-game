@@ -1,4 +1,4 @@
-import { PHYSICS_DT, VIEW_W, VIEW_H } from './game/constants.js';
+import { PHYSICS_DT, VIEW_W, VIEW_H, MIN_BOARD_TIME } from './game/constants.js';
 import { LEVELS } from './game/levels/index.js';
 import { createSession, updateSession, restartLevel, jumpLevel } from './game/session.js';
 import { createInput } from './engine/input.js';
@@ -8,6 +8,7 @@ import { createRenderer, fmtTime } from './engine/render.js';
 import { createAudio } from './engine/audio.js';
 import { createTouch, ASK } from './engine/touch.js';
 import { BOARD_URL } from './engine/board-url.js';
+import { sift, rank } from './game/board.js';
 
 // 走到這一行就代表模組載得起來。把「遊戲沒有啟動」那塊說明收掉。
 document.getElementById('boot')?.remove?.();
@@ -42,50 +43,72 @@ function playerName() {
   return n;
 }
 
+// 本機備援。順手把舊版留下來的成績洗掉並寫回去——
+// 雲端掛掉的時候顯示的就是這一份,它髒著就等於門檻沒生效。
+function loadLocalBoard() {
+  let board = [];
+  try { board = JSON.parse(localStorage.getItem(BOARD_KEY)) ?? []; } catch { /* 隱私模式沒得存 */ }
+  const clean = sift(board);
+  if (!Array.isArray(board) || clean.length !== board.length) {
+    try { localStorage.setItem(BOARD_KEY, JSON.stringify(clean)); } catch { /* 認了 */ }
+  }
+  return clean;
+}
+
 // 抓下來、把自己的成績塞進去、整包寫回去。
 // 兩個人同一秒寫會有一筆被蓋掉——玩具排行榜,先寫先贏,不上鎖。
 async function syncBoard(entry) {
   const res = await fetch(BOARD_URL, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(String(res.status));
-  let list = await res.json();
-  if (!Array.isArray(list)) list = [];
-  if (entry) {
-    list.push(entry);
-    // 時間快的贏;同秒數死得少的贏
-    list.sort((a, b) => a.time - b.time || a.deaths - b.deaths);
-    list = list.slice(0, 100);
+  const list = await res.json();
+  const clean = sift(list);
+  // 自己有成績要交,或者榜上撿到不該在的東西,都要寫回去
+  const dirty = !Array.isArray(list) || clean.length !== list.length;
+  if (entry) clean.push(entry);
+  const out = rank(clean).slice(0, 100);
+  if (entry || dirty) {
     await fetch(BOARD_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(list),
+      body: JSON.stringify(out),
     });
   }
-  return list;
+  return out;
 }
 
 function recordRun() {
-  const now = new Date();
-  const entry = {
-    name: playerName(),
-    time: Math.round(session.totalTime * 10) / 10,
-    deaths: session.totalDeaths,
-    date: `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
-    // 打贏 BOSS 的人,排行榜名字前面掛星——用走完 18 關的時間跟
-    // 只走 17 關的人比並不公平,這顆星就是「不公平在哪」的說明
-    boss: session.bossCleared === true,
-  };
-  session.lastKey = `${entry.name}|${entry.time}|${entry.deaths}`;
+  const time = Math.round(session.totalTime * 10) / 10;
 
-  // 本機備份照舊——雲端掛了至少還有自己的紀錄可以看
-  let board = [];
-  try { board = JSON.parse(localStorage.getItem(BOARD_KEY)) ?? []; } catch { /* 隱私模式沒得存 */ }
-  board.push(entry);
-  board.sort((a, b) => a.time - b.time || a.deaths - b.deaths);
-  board = board.slice(0, 10);
-  try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch { /* 一樣,認了 */ }
+  // 太快的成績不受理:不上雲、不進本機備份、連名字都不問。
+  // 擋在提交這一關而不是擋在顯示端,是因為擋在顯示端等於資料已經上去了——
+  // 顯示端那道(sift)只是收拾舊版漏進來的,不是主要的防線。
+  let entry = null;
+  let board = loadLocalBoard();
+
+  if (time < MIN_BOARD_TIME) {
+    session.boardRejected = time;
+  } else {
+    const now = new Date();
+    entry = {
+      name: playerName(),
+      time,
+      deaths: session.totalDeaths,
+      date: `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+      // 打贏 BOSS 的人,排行榜名字前面掛星——用走完 18 關的時間跟
+      // 只走 17 關的人比並不公平,這顆星就是「不公平在哪」的說明
+      boss: session.bossCleared === true,
+    };
+    session.lastKey = `${entry.name}|${entry.time}|${entry.deaths}`;
+
+    // 本機備份照舊——雲端掛了至少還有自己的紀錄可以看
+    board = rank([...board, entry]).slice(0, 10);
+    try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch { /* 一樣,認了 */ }
+  }
+
   session.leaderboard = board;
   session.boardStatus = 'loading';
 
+  // entry 是 null 的時候 syncBoard 只抓不寫:成績不算,榜還是要給人看
   syncBoard(entry)
     .then((list) => { session.leaderboard = list; session.boardStatus = 'ok'; })
     .catch(() => { session.boardStatus = 'offline'; });

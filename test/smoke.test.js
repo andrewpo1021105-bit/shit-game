@@ -47,6 +47,27 @@ test('側寫面板、反轉提示與結算報告都畫得出來', async () => {
   updateSession(solo, { left: false, right: false, jump: false }, PHYSICS_DT);
 });
 
+// 成績被擋下來的結算畫面。這條路徑要跑到，玩家得先跑進一分鐘——
+// 沒有人會不小心走到這裡，所以只能在這裡直接把它畫一遍。
+test('成績不受理時，結算畫面照樣畫得出來', async () => {
+  stubBrowser(1);
+  const { createRenderer } = await import(`../src/engine/render.js?smoke=${Date.now()}`);
+  const { createSession } = await import('../src/game/session.js');
+  const { LEVELS } = await import('../src/game/levels/index.js');
+
+  const renderer = createRenderer(document.getElementById('game'));
+  const session = createSession(LEVELS);
+  session.phase = 'finished';
+  session.totalTime = 42.3;
+  session.boardRejected = 42.3;
+  session.leaderboard = [{ name: '別人', time: 300, deaths: 40, date: '07-30', boss: true }];
+  session.boardStatus = 'ok';
+  for (const t of [0, 0.6, 2]) {
+    session.timer = t;
+    renderer.draw(session, 0);
+  }
+});
+
 test('每一支瀏覽器端模組都 import 得起來', async () => {
   stubBrowser(1);
   for (const path of [

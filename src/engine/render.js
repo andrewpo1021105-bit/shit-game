@@ -1,4 +1,4 @@
-import { TILE, VIEW_W, VIEW_H } from '../game/constants.js';
+import { TILE, VIEW_W, VIEW_H, MIN_BOARD_TIME } from '../game/constants.js';
 import { SWEEP_IN, REVEAL_AT, TRANSITION_TIME } from '../game/session.js';
 import { SPRITES } from './sprites.js';
 import { ZONES, ASK } from './touch.js';
@@ -1409,9 +1409,20 @@ export function createRenderer(canvas) {
     // 雲端還在同步或斷線時,先顯示本機紀錄,狀態寫在標題旁邊。
     const board = (session.leaderboard ?? []).slice(0, 10);
     if (t > 0.5) {
-      ctx.font = 'bold 11px Consolas, monospace';
-      ctx.fillStyle = '#ffd75e';
-      ctx.fillText('─────  WORLD BEST TIMES  ─────', cx, 98);
+      // 成績被擋下來的時候,榜的標題就換成擋下來的理由——玩家會盯著看的
+      // 就是這一行,把「你為什麼不在榜上」寫在他找自己名字的地方。
+      if (session.boardRejected !== undefined) {
+        ctx.font = 'bold 10px "Microsoft JhengHei", sans-serif';
+        ctx.fillStyle = C.uiHot;
+        ctx.fillText(
+          `─  ${fmtTime(session.boardRejected)} 不受理:低於 ${MIN_BOARD_TIME} 秒的成績不上榜  ─`,
+          cx, 98,
+        );
+      } else {
+        ctx.font = 'bold 11px Consolas, monospace';
+        ctx.fillStyle = '#ffd75e';
+        ctx.fillText('─────  WORLD BEST TIMES  ─────', cx, 98);
+      }
       if (session.boardStatus === 'loading') {
         ctx.font = '8px "Microsoft JhengHei", sans-serif';
         ctx.fillStyle = C.ui;
