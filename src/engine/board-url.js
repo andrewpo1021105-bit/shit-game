@@ -2,4 +2,4 @@
 // 獨立成一個檔案是給 .github/workflows/keepalive.yml 用的:
 // 倉庫要是過期(一天沒人碰就會),排程會自動開新倉庫、
 // 從備份還原,然後改寫這一行——所以這個網址格式不要動。
-export const BOARD_URL = 'https://jsonblob.com/api/jsonBlob/019fd5ad-eb58-710f-b19d-0e57fd836ad2';
+export const BOARD_URL = 'https://jsonblob.com/api/jsonBlob/019fdfa2-627b-7f2f-ac46-77ee8bc62931';
